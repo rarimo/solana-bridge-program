@@ -1,5 +1,18 @@
 use mpl_token_metadata::state::Data;
 use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::pubkey::Pubkey;
+
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct InitBridgeStateArgs {
+    pub admin: Pubkey,
+}
+
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct TransferOwnershipArgs {
+    pub new_admin: Pubkey,
+}
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -9,6 +22,8 @@ pub struct DepositArgs {
     pub nonce: String,
 }
 
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WithdrawArgs {
     pub deposit_tx: String,
     pub network_from: String,
@@ -22,18 +37,15 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The BridgeAdmin account to initialize
-    ///   1. `[]` System program
-    ///   2. `[]` Token program id
-    ///   3. `[]` Rent sysvar
-    InitializeAdmin,
+    ///   1. `[]` Rent sysvar
+    InitializeAdmin(InitBridgeStateArgs),
 
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The BridgeAdmin account
     ///   1. `[signer]` Current admin account
-    ///   2. `[]` New admin account
     ///
-    TransferOwnership,
+    TransferOwnership(TransferOwnershipArgs),
 
     /// Accounts expected by this instruction:
     ///

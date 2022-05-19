@@ -1,23 +1,27 @@
 use std::str::FromStr;
 use solana_program::{pubkey, pubkey::Pubkey};
 use borsh::{BorshDeserialize, BorshSerialize};
+use shank::ShankAccount;
 
 #[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, ShankAccount)]
 pub struct BridgeAdmin {
     pub admin: Pubkey,
+    pub is_initialized: bool,
 }
 
 #[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, ShankAccount)]
 pub struct Deposit {
-    network: String,
-    receiver_address: String,
+    pub network: String,
+    pub receiver_address: String,
+    pub is_initialized: bool,
 }
 
 #[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, ShankAccount)]
 pub struct Withdraw {
-    network: String,
-    sender_address: String,
+    pub network: String,
+    pub sender_address: String,
+    pub is_initialized: bool,
 }

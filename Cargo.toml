@@ -11,6 +11,8 @@ solana-program = "1.9.2"
 spl-token = { version = "3.2.0", features = ["no-entrypoint"] }
 borsh = "0.9.3"
 mpl-token-metadata = "1.2.7"
+thiserror = "1.0"
+shank = { version = "~0.0.2" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
