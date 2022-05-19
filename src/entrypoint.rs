@@ -14,10 +14,11 @@ fn process_instruction<'a>(
     accounts: &'a [AccountInfo<'a>],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    if let Err(error) = processor::process_instruction(program_id, accounts, instruction_data) {
-        // catch the error so we can print it
-        error.print::<MetadataError>();
-        return Err(error);
+    match processor::process_instruction(program_id, accounts, instruction_data) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            e.print_custom();
+            return Err(e.into_standard());
+        }
     }
-    Ok(())
 }
