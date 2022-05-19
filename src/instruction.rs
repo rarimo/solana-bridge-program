@@ -1,23 +1,24 @@
 use mpl_token_metadata::state::Data;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct DepositArgs {
-    network_to: String,
-    receiver_address: String,
-    nonce: String,
+    pub network_to: String,
+    pub receiver_address: String,
+    pub nonce: String,
 }
 
 pub struct WithdrawArgs {
-    deposit_tx: String,
-    network_from: String,
-    sender_address: String,
-    data: Data,
+    pub deposit_tx: String,
+    pub network_from: String,
+    pub sender_address: String,
+    pub data: Data,
 }
 
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
-pub enum MetadataInstruction {
+pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The BridgeAdmin account to initialize
