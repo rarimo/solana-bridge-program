@@ -9,9 +9,9 @@ use solana_program::{
 };
 use crate::instruction::BridgeInstruction;
 use mpl_token_metadata::state::Data;
-use crate::state::BridgeAdmin;
+use crate::state::{BridgeAdmin, BRIDGE_ADMIN_SIZE};
 use crate::error::BridgeError;
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -53,8 +53,12 @@ pub fn process_init_admin<'a>(
         return Err(BridgeError::AlreadyInUse.into());
     }
 
+    if !bridge_admin_account_info.data_len() != BRIDGE_ADMIN_SIZE {
+        return Err(BridgeError::WrongDataLen.into());
+    }
+
     let rent = Rent::from_account_info(rent_info)?;
-    if !rent.is_exempt(new_account_info.lamports(), new_account_info_data_len) {
+    if !rent.is_exempt(bridge_admin_account_info.lamports(), BRIDGE_ADMIN_SIZE) {
         return Err(BridgeError::NotRentExempt.into());
     }
 

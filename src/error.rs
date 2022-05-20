@@ -20,6 +20,9 @@ pub enum BridgeError {
     /// Admin signature was not provided
     #[error("No signature")]
     UnsignedAdmin,
+    /// Created account data length is wrong
+    #[error("Wrong data len")]
+    WrongDataLen,
 }
 
 impl From<BridgeError> for ProgramError {
