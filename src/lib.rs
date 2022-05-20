@@ -1,5 +1,5 @@
-mod state;
-mod instruction;
-mod entrypoint;
-mod processor;
-mod error;
+pub mod state;
+pub mod instruction;
+pub mod entrypoint;
+pub mod processor;
+pub mod error;

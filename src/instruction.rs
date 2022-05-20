@@ -1,9 +1,13 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::pubkey::Pubkey;
+use solana_program::{
+    instruction::{Instruction, AccountMeta},
+    sysvar,
+};
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub struct InitBridgeStateArgs {
+pub struct InitializeAdminArgs {
     pub admin: Pubkey,
     pub seeds: [u8; 32],
 }
@@ -48,7 +52,7 @@ pub enum BridgeInstruction {
     ///
     ///   0. `[writable]` The BridgeAdmin account to initialize
     ///   1. `[]` Rent sysvar
-    InitializeAdmin(InitBridgeStateArgs),
+    InitializeAdmin(InitializeAdminArgs),
 
     /// Change admin in BridgeAdmin.
     ///
@@ -98,4 +102,23 @@ pub enum BridgeInstruction {
     ///   7. `[]` Token program id
     ///   8. `[]` Rent sysvar
     WithdrawMetaplex(WithdrawArgs),
+}
+
+pub fn initialize_admin(
+    program_id: Pubkey,
+    bridge_admin: Pubkey,
+    admin: Pubkey,
+    seeds: [u8; 32],
+) -> Instruction {
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(bridge_admin, false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
+        ],
+        data: BridgeInstruction::InitializeAdmin(InitializeAdminArgs {
+            admin,
+            seeds,
+        }).try_to_vec().unwrap(),
+    }
 }

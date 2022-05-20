@@ -1,13 +1,15 @@
 use solana_program::{
     account_info::{AccountInfo},
     entrypoint,
+    declare_id,
     entrypoint::{ProgramResult},
     pubkey::Pubkey,
-    program_error::PrintProgramError,
 };
 use crate::{processor};
 use crate::error::BridgeError;
+use solana_program::program_error::PrintProgramError;
 
+declare_id!("392R2jYuEbQTr3U7C3vKh5DXeJFSX7vwoPt2icHS4NPC");
 entrypoint!(process_instruction);
 
 fn process_instruction<'a>(

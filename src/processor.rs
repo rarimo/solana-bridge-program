@@ -59,23 +59,23 @@ pub fn process_init_admin<'a>(
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
-    if bridge_admin.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
-    }
-
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
     if bridge_admin_key != *bridge_admin_account_info.key {
         return Err(BridgeError::WrongSeeds.into());
     }
 
-    if !bridge_admin_account_info.data_len() != BRIDGE_ADMIN_SIZE {
+    if bridge_admin_account_info.data_len() != BRIDGE_ADMIN_SIZE {
         return Err(BridgeError::WrongDataLen.into());
     }
 
     let rent = Rent::from_account_info(rent_info)?;
     if !rent.is_exempt(bridge_admin_account_info.lamports(), BRIDGE_ADMIN_SIZE) {
         return Err(BridgeError::NotRentExempt.into());
+    }
+
+    let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
+    if bridge_admin.is_initialized {
+        return Err(BridgeError::AlreadyInUse.into());
     }
 
     bridge_admin.admin = admin;
@@ -184,7 +184,7 @@ pub fn process_deposit_metaplex<'a>(
         return Err(BridgeError::AlreadyInUse.into());
     }
 
-    if !deposit_account_info.data_len() != DEPOSIT_SIZE {
+    if deposit_account_info.data_len() != DEPOSIT_SIZE {
         return Err(BridgeError::WrongDataLen.into());
     }
 
@@ -284,7 +284,7 @@ pub fn process_withdraw_metaplex<'a>(
         return Err(BridgeError::AlreadyInUse.into());
     }
 
-    if !withdraw_account_info.data_len() != WITHDRAW_SIZE {
+    if withdraw_account_info.data_len() != WITHDRAW_SIZE {
         return Err(BridgeError::WrongDataLen.into());
     }
 
@@ -298,4 +298,149 @@ pub fn process_withdraw_metaplex<'a>(
     withdraw.sender_address = sender;
     withdraw.serialize(&mut *withdraw_account_info.data.borrow_mut())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::instruction::*;
+    use solana_program::{
+        account_info::IntoAccountInfo, clock::Epoch, instruction::Instruction, program_error,
+        sysvar::rent,
+    };
+    use solana_sdk::account::{
+        create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount,
+    };
+
+    struct SyscallStubs {}
+
+    impl solana_sdk::program_stubs::SyscallStubs for SyscallStubs {
+        fn sol_log(&self, _message: &str) {}
+
+        fn sol_invoke_signed(
+            &self,
+            _instruction: &Instruction,
+            _account_infos: &[AccountInfo],
+            _signers_seeds: &[&[&[u8]]],
+        ) -> ProgramResult {
+            msg!("Call invoke signed: {}", _instruction.program_id);
+            Ok(())
+        }
+
+        fn sol_get_clock_sysvar(&self, _var_addr: *mut u8) -> u64 {
+            program_error::UNSUPPORTED_SYSVAR
+        }
+
+        fn sol_get_epoch_schedule_sysvar(&self, _var_addr: *mut u8) -> u64 {
+            program_error::UNSUPPORTED_SYSVAR
+        }
+
+        #[allow(deprecated)]
+        fn sol_get_fees_sysvar(&self, _var_addr: *mut u8) -> u64 {
+            program_error::UNSUPPORTED_SYSVAR
+        }
+
+        fn sol_get_rent_sysvar(&self, var_addr: *mut u8) -> u64 {
+            unsafe {
+                *(var_addr as *mut _ as *mut Rent) = Rent::default();
+            }
+            solana_program::entrypoint::SUCCESS
+        }
+    }
+
+    fn do_process_instruction(
+        instruction: Instruction,
+        accounts: Vec<&mut SolanaAccount>,
+    ) -> ProgramResult {
+        {
+            use std::sync::Once;
+            static ONCE: Once = Once::new();
+
+            ONCE.call_once(|| {
+                solana_sdk::program_stubs::set_syscall_stubs(Box::new(SyscallStubs {}));
+            });
+        }
+
+        let mut meta = instruction
+            .accounts
+            .iter()
+            .zip(accounts)
+            .map(|(account_meta, account)| (&account_meta.pubkey, account_meta.is_signer, account))
+            .collect::<Vec<_>>();
+
+        let account_infos = create_is_signer_account_infos(&mut meta);
+
+        process_instruction(&instruction.program_id, &account_infos, &instruction.data)
+    }
+
+    fn rent_sysvar() -> SolanaAccount {
+        create_account_for_test(&Rent::default())
+    }
+
+    #[test]
+    fn test_initialize_mint() {
+        let program_id = crate::entrypoint::id();
+        let admin_key = Pubkey::new_unique();
+        let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
+        let bridge_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+
+        let mut mint_account = SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id);
+
+        // positive flow
+        do_process_instruction(
+            initialize_admin(program_id, bridge_key, admin_key, seeds),
+            vec![
+                &mut mint_account,
+                &mut rent_sysvar(),
+            ],
+        ).unwrap();
+
+        // account is not rent exempt
+        assert_eq!(
+            Err(BridgeError::NotRentExempt.into()),
+            do_process_instruction(
+                initialize_admin(program_id, bridge_key, admin_key, seeds),
+                vec![
+                    &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE) - 1, BRIDGE_ADMIN_SIZE, &program_id),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        // create twice
+        assert_eq!(
+            Err(BridgeError::AlreadyInUse.into()),
+            do_process_instruction(
+                initialize_admin(program_id, bridge_key, admin_key, seeds),
+                vec![
+                    &mut mint_account,
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        // wrong seeds
+        assert_eq!(
+            Err(BridgeError::WrongSeeds.into()),
+            do_process_instruction(
+                initialize_admin(program_id, Pubkey::new_unique(), admin_key, seeds),
+                vec![
+                    &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        // wrong data len
+        assert_eq!(
+            Err(BridgeError::WrongDataLen.into()),
+            do_process_instruction(
+                initialize_admin(program_id, bridge_key, admin_key, seeds),
+                vec![
+                    &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE - 1, &program_id),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+    }
 }
