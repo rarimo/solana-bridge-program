@@ -22,6 +22,15 @@ pub enum BridgeError {
     /// Created account data length is wrong
     #[error("Wrong data len")]
     WrongDataLen,
+    /// Wrong seeds for admin account
+    #[error("Wrong seeds")]
+    WrongSeeds,
+    /// Wrong nonce for deposit account
+    #[error("Wrong nonce")]
+    WrongNonce,
+    /// Wrong token account
+    #[error("Wrong token account")]
+    WrongTokenAccount,
 }
 
 impl From<BridgeError> for ProgramError {
