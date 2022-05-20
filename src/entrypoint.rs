@@ -3,11 +3,10 @@ use solana_program::{
     entrypoint,
     entrypoint::{ProgramResult},
     pubkey::Pubkey,
+    program_error::PrintProgramError,
 };
 use crate::{processor};
 use crate::error::BridgeError;
-use solana_program::program_error::PrintProgramError;
-
 
 entrypoint!(process_instruction);
 

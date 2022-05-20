@@ -7,11 +7,13 @@ use solana_program::{
     pubkey::Pubkey,
     sysvar::{rent::Rent, Sysvar},
 };
-use crate::instruction::BridgeInstruction;
 use mpl_token_metadata::state::Data;
-use crate::state::{BridgeAdmin, BRIDGE_ADMIN_SIZE};
-use crate::error::BridgeError;
 use borsh::{BorshDeserialize, BorshSerialize};
+use crate::{
+    instruction::BridgeInstruction,
+    state::{BridgeAdmin, BRIDGE_ADMIN_SIZE},
+    error::BridgeError,
+};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -28,13 +30,13 @@ pub fn process_instruction<'a>(
             msg!("Instruction: Transfer Bridge Admin ownership");
             process_transfer_ownership(program_id, accounts, args.new_admin)
         }
-        BridgeInstruction::Deposit(args) => {
+        BridgeInstruction::DepositMetaplex(args) => {
             msg!("Instruction: Deposit token");
-            process_deposit(program_id, accounts, args.network_to, args.receiver_address, args.nonce)
+            process_deposit_metaplex(program_id, accounts, args.network_to, args.receiver_address, args.nonce)
         }
-        BridgeInstruction::Withdraw(args) => {
+        BridgeInstruction::WithdrawMetaplex(args) => {
             msg!("Instruction: Withdraw token");
-            process_withdraw(program_id, accounts, args.deposit_tx, args.network_from, args.sender_address, args.data)
+            process_withdraw_metaplex(program_id, accounts, args.deposit_tx, args.network_from, args.sender_address, args.data)
         }
     }
 }
@@ -91,7 +93,7 @@ pub fn process_transfer_ownership<'a>(
     Ok(())
 }
 
-pub fn process_deposit<'a>(
+pub fn process_deposit_metaplex<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     network: String,
@@ -102,7 +104,7 @@ pub fn process_deposit<'a>(
     Ok(())
 }
 
-pub fn process_withdraw<'a>(
+pub fn process_withdraw_metaplex<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     tx: String,
