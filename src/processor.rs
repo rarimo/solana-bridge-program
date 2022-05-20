@@ -6,7 +6,6 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     sysvar::{rent::Rent, Sysvar},
-    assosiated,
 };
 use spl_token::{instruction::transfer, state::Account};
 use spl_associated_token_account::get_associated_token_address;
