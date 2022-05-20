@@ -19,6 +19,9 @@ pub enum BridgeError {
     /// Admin signature was not provided
     #[error("No signature")]
     UnsignedAdmin,
+    /// Wrong admin account
+    #[error("Wrong admin")]
+    WrongAdmin,
     /// Created account data length is wrong
     #[error("Wrong data len")]
     WrongDataLen,
@@ -31,6 +34,9 @@ pub enum BridgeError {
     /// Wrong token account
     #[error("Wrong token account")]
     WrongTokenAccount,
+    /// Wrong token mint account
+    #[error("Wrong token metadata account")]
+    WrongMetadataAccount,
 }
 
 impl From<BridgeError> for ProgramError {
