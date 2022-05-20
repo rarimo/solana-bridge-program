@@ -1,4 +1,3 @@
-use mpl_token_metadata::state::Data;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::pubkey::Pubkey;
 
@@ -31,7 +30,6 @@ pub struct WithdrawArgs {
     pub deposit_tx: String,
     pub network_from: String,
     pub sender_address: String,
-    pub data: Data,
     pub seeds: [u8; 32],
 }
 

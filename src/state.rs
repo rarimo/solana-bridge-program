@@ -1,5 +1,4 @@
-use std::str::FromStr;
-use solana_program::{pubkey, pubkey::Pubkey};
+use solana_program::pubkey::Pubkey;
 use borsh::{BorshDeserialize, BorshSerialize};
 use shank::ShankAccount;
 
