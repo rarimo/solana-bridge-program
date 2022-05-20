@@ -384,16 +384,25 @@ mod tests {
         let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
         let bridge_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
 
-        let mut mint_account = SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id);
+        let mut bridge_account = SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id);
 
         // positive flow
         do_process_instruction(
             initialize_admin(program_id, bridge_key, admin_key, seeds),
             vec![
-                &mut mint_account,
+                &mut bridge_account,
                 &mut rent_sysvar(),
             ],
         ).unwrap();
+
+        let bridge: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_account.data.as_ref()).unwrap();
+        assert_eq!(
+            BridgeAdmin {
+                admin: admin_key,
+                is_initialized: true,
+            },
+            bridge
+        );
 
         // account is not rent exempt
         assert_eq!(
@@ -413,7 +422,7 @@ mod tests {
             do_process_instruction(
                 initialize_admin(program_id, bridge_key, admin_key, seeds),
                 vec![
-                    &mut mint_account,
+                    &mut bridge_account,
                     &mut rent_sysvar(),
                 ],
             )
