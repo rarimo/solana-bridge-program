@@ -311,6 +311,8 @@ mod tests {
     use solana_sdk::account::{
         create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount,
     };
+    use std::net::Shutdown::Both;
+    use solana_program::instruction::AccountMeta;
 
     struct SyscallStubs {}
 
@@ -448,6 +450,100 @@ mod tests {
                 vec![
                     &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE - 1, &program_id),
                     &mut rent_sysvar(),
+                ],
+            )
+        );
+    }
+
+    #[test]
+    fn test_transfer_ownership() {
+        let program_id = crate::entrypoint::id();
+
+        let mut admin_account = SolanaAccount::new(0, 0, &Pubkey::new_unique());
+        let new_admin_key = Pubkey::new_unique();
+
+        let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
+        let bridge_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+
+        let bridge = BridgeAdmin {
+            admin: admin_account.owner,
+            is_initialized: true,
+        };
+
+        let mut bridge_account =
+            SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), 0, &program_id);
+        bridge.serialize(&mut bridge_account.data);
+
+        let mut other_admin = SolanaAccount::new(0, 0, &Pubkey::new_unique());
+
+        // Wrong admin
+        assert_eq!(
+            Err(BridgeError::WrongAdmin.into()),
+            do_process_instruction(
+                transfer_ownership(program_id, bridge_key, other_admin.owner, new_admin_key, seeds),
+                vec![
+                    &mut bridge_account,
+                    &mut other_admin,
+                ],
+            )
+        );
+
+        // wrong seeds
+        assert_eq!(
+            Err(BridgeError::WrongSeeds.into()),
+            do_process_instruction(
+                transfer_ownership(program_id, Pubkey::new_unique(), admin_account.owner, new_admin_key, seeds),
+                vec![
+                    &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id),
+                    &mut other_admin,
+                ],
+            )
+        );
+
+        let mut unsigned_instruction = transfer_ownership(program_id, bridge_key, admin_account.owner, new_admin_key, seeds);
+        unsigned_instruction.accounts[1] = AccountMeta::new(admin_account.owner, false);
+
+        // Unsigned admin
+        assert_eq!(
+            Err(BridgeError::UnsignedAdmin.into()),
+            do_process_instruction(
+                unsigned_instruction,
+                vec![
+                    &mut bridge_account,
+                    &mut admin_account,
+                ],
+            )
+        );
+
+        // positive flow
+        do_process_instruction(
+            transfer_ownership(program_id, bridge_key, admin_account.owner, new_admin_key, seeds),
+            vec![
+                &mut bridge_account,
+                &mut admin_account,
+            ],
+        ).unwrap();
+
+        let bridge: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_account.data.as_ref()).unwrap();
+        assert_eq!(
+            BridgeAdmin {
+                admin: new_admin_key,
+                is_initialized: true,
+            },
+            bridge
+        );
+
+        bridge_account =
+            SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id);
+
+        // not initialized
+        assert_eq!(
+            Err(BridgeError::NotInitialized.into()),
+            do_process_instruction(
+                transfer_ownership(program_id, bridge_key, admin_account.owner, new_admin_key, seeds),
+                vec![
+                    &mut bridge_account,
+                    &mut admin_account,
                 ],
             )
         );

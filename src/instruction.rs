@@ -122,3 +122,23 @@ pub fn initialize_admin(
         }).try_to_vec().unwrap(),
     }
 }
+
+pub fn transfer_ownership(
+    program_id: Pubkey,
+    bridge_admin: Pubkey,
+    admin: Pubkey,
+    new_admin: Pubkey,
+    seeds: [u8; 32],
+) -> Instruction {
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(bridge_admin, false),
+            AccountMeta::new_readonly(admin, true),
+        ],
+        data: BridgeInstruction::TransferOwnership(TransferOwnershipArgs {
+            new_admin,
+            seeds,
+        }).try_to_vec().unwrap(),
+    }
+}
