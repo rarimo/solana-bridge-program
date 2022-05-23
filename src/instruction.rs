@@ -97,7 +97,7 @@ pub enum BridgeInstruction {
     ///   0. `[]` The BridgeAdmin account
     ///   1. `[]` The token mint account
     ///   2. `[writable]` The owner token associated account
-    ///   3. `[writable]` The program token account
+    ///   3. `[writable]` The bridge token account
     ///   4. `[writable]` The new Deposit account
     ///   5. `[signer]` The token owner account
     ///   6. `[]` Token program id
@@ -117,7 +117,7 @@ pub enum BridgeInstruction {
     ///   0. `[]` The BridgeAdmin account
     ///   1. `[]` The token mint account
     ///   2. `[writable]` The owner token associated account
-    ///   3. `[writable]` The program token account
+    ///   3. `[writable]` The bridge token account
     ///   4. `[writable]` The new Withdraw account
     ///   5. `[signer]` The admin account
     ///   6. `[]` Token program id
