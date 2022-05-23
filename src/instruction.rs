@@ -93,14 +93,13 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
-    ///   1. `[writable]` The token mint account
-    ///   2. `[writable]` The token metadata account
+    ///   1. `[]` The token mint account
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The program token account
     ///   4. `[writable]` The new Withdraw account
     ///   5. `[signer]` The admin account
-    ///   7. `[]` Token program id
-    ///   8. `[]` Rent sysvar
+    ///   6. `[]` Token program id
+    ///   7. `[]` Rent sysvar
     WithdrawMetaplex(WithdrawArgs),
 }
 
@@ -174,6 +173,40 @@ pub fn deposit_metaplex(
             receiver_address,
             seeds,
             nonce,
+        }).try_to_vec().unwrap(),
+    }
+}
+
+pub fn withdraw_metaplex(
+    program_id: Pubkey,
+    bridge_admin: Pubkey,
+    mint: Pubkey,
+    owner_associated: Pubkey,
+    program_associated: Pubkey,
+    withdraw: Pubkey,
+    admin: Pubkey,
+    seeds: [u8; 32],
+    deposit_tx: String,
+    network_from: String,
+    sender_address: String,
+) -> Instruction {
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new_readonly(bridge_admin, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(owner_associated, false),
+            AccountMeta::new(program_associated, false),
+            AccountMeta::new(withdraw, false),
+            AccountMeta::new_readonly(admin, true),
+            AccountMeta::new_readonly(spl_token::id(), false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
+        ],
+        data: BridgeInstruction::WithdrawMetaplex(WithdrawArgs {
+            deposit_tx,
+            network_from,
+            seeds,
+            sender_address,
         }).try_to_vec().unwrap(),
     }
 }

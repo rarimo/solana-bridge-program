@@ -130,7 +130,7 @@ pub fn process_deposit_metaplex<'a>(
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
     let mint_account_info = next_account_info(account_info_iter)?;
     let owner_associated_account_info = next_account_info(account_info_iter)?;
-    let program_token_account_info = next_account_info(account_info_iter)?;
+    let bridge_token_account_info = next_account_info(account_info_iter)?;
     let deposit_account_info = next_account_info(account_info_iter)?;
     let owner_account_info = next_account_info(account_info_iter)?;
     let token_program = next_account_info(account_info_iter)?;
@@ -146,7 +146,7 @@ pub fn process_deposit_metaplex<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    if *program_token_account_info.key !=
+    if *bridge_token_account_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_account_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
     }
@@ -159,7 +159,7 @@ pub fn process_deposit_metaplex<'a>(
     let transfer_tokens_instruction = transfer(
         token_program.key,
         owner_associated_account_info.key,
-        program_token_account_info.key,
+        bridge_token_account_info.key,
         owner_account_info.key,
         &[],
         1,
@@ -169,7 +169,7 @@ pub fn process_deposit_metaplex<'a>(
         &transfer_tokens_instruction,
         &[
             owner_associated_account_info.clone(),
-            program_token_account_info.clone(),
+            bridge_token_account_info.clone(),
             owner_account_info.clone(),
         ],
     )?;
@@ -213,8 +213,7 @@ pub fn process_withdraw_metaplex<'a>(
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
     let mint_account_info = next_account_info(account_info_iter)?;
     let owner_associated_account_info = next_account_info(account_info_iter)?;
-    let owner_account_info = next_account_info(account_info_iter)?;
-    let program_token_account_info = next_account_info(account_info_iter)?;
+    let bridge_token_account_info = next_account_info(account_info_iter)?;
     let withdraw_account_info = next_account_info(account_info_iter)?;
     let admin_account_info = next_account_info(account_info_iter)?;
     let token_program = next_account_info(account_info_iter)?;
@@ -238,13 +237,8 @@ pub fn process_withdraw_metaplex<'a>(
         return Err(BridgeError::UnsignedAdmin.into());
     }
 
-    if *program_token_account_info.key !=
+    if *bridge_token_account_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_account_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
-    }
-
-    if *owner_associated_account_info.key !=
-        get_associated_token_address(owner_account_info.key, mint_account_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
@@ -255,7 +249,7 @@ pub fn process_withdraw_metaplex<'a>(
 
     let transfer_tokens_instruction = transfer(
         &token_program.key,
-        &program_token_account_info.key,
+        &bridge_token_account_info.key,
         owner_associated_account_info.key,
         &bridge_admin_key,
         &[],
@@ -265,7 +259,7 @@ pub fn process_withdraw_metaplex<'a>(
     invoke_signed(
         &transfer_tokens_instruction,
         &[
-            program_token_account_info.clone(),
+            bridge_token_account_info.clone(),
             owner_associated_account_info.clone(),
             bridge_admin_account_info.clone(),
         ],
@@ -333,8 +327,27 @@ mod tests {
             _signers_seeds: &[&[&[u8]]],
         ) -> ProgramResult {
             msg!("Call invoke signed: {}", _instruction.program_id);
-            msg!("Calling token program");
-            spl_token::processor::Processor::process(&_instruction.program_id, _account_infos, &_instruction.data)
+
+            // cloning account infos to make it mutable
+            let mut account_infos: Vec<AccountInfo> = Vec::new();
+            for info in _account_infos {
+                account_infos.push(info.clone());
+            }
+
+            // signing with seeds
+            if _signers_seeds.len() > 0 {
+                for seed in _signers_seeds {
+                    let key = Pubkey::create_program_address(*seed, &crate::entrypoint::id())?;
+                    for mut info in account_infos.as_mut_slice() {
+                        if *info.key == key {
+                            info.is_signer = true;
+                        }
+                    }
+                }
+            }
+
+            // call token program
+            spl_token::processor::Processor::process(&_instruction.program_id, account_infos.as_slice(), &_instruction.data)
         }
 
         fn sol_get_clock_sysvar(&self, _var_addr: *mut u8) -> u64 {
@@ -616,6 +629,68 @@ mod tests {
         assert_eq!(
             bridge_token_account.amount,
             1,
+        );
+    }
+
+    #[test]
+    fn test_withdraw_metaplex() {
+        let program_id = crate::entrypoint::id();
+        let mut admin_account = SolanaAccount::new(0, 0, &Pubkey::new_unique());
+        let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
+
+        let mut bridge_account = SolanaAccount::default();
+        let bridge_key = init_bridge_account(&mut bridge_account, &seeds, &program_id, &admin_account.owner);
+
+        let mut mint_account = SolanaAccount::default();
+        let mint_key = init_mint_account(&mut mint_account);
+
+        let mut owner_associated_account = SolanaAccount::default();
+        let owner_associated_key = init_associated_account(&mut owner_associated_account, &Pubkey::new_unique(), &mint_key, 0);
+
+        let mut bridge_associated_account = SolanaAccount::default();
+        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 1);
+
+        let nonce = hash::hash("0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".as_bytes()).to_bytes();
+        let (mut withdraw_account, withdraw_key) = get_nonce_account(nonce, &bridge_key, &program_id, WITHDRAW_SIZE);
+
+        // positive flow
+        do_process_instruction(
+            withdraw_metaplex(
+                program_id,
+                bridge_key,
+                mint_key,
+                owner_associated_key,
+                bridge_associated_key,
+                withdraw_key,
+                admin_account.owner,
+                seeds,
+                "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
+                "Ethereum".to_string(),
+                "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+            ),
+            vec![
+                &mut bridge_account,
+                &mut mint_account,
+                &mut owner_associated_account,
+                &mut bridge_associated_account,
+                &mut withdraw_account,
+                &mut admin_account,
+                &mut token_program_account(),
+                &mut rent_sysvar(),
+            ],
+        ).unwrap();
+
+
+        let owner_token_account = Account::unpack_from_slice(owner_associated_account.data.as_slice()).unwrap();
+        let bridge_token_account = Account::unpack_from_slice(bridge_associated_account.data.as_slice()).unwrap();
+        assert_eq!(
+            owner_token_account.amount,
+            1,
+        );
+
+        assert_eq!(
+            bridge_token_account.amount,
+            0,
         );
     }
 
