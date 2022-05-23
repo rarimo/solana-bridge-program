@@ -309,9 +309,7 @@ mod tests {
         account_info::IntoAccountInfo, clock::Epoch, instruction::Instruction, program_error,
         sysvar::rent,
     };
-    use solana_sdk::account::{
-        create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount,
-    };
+    use solana_sdk::account::{create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount, ReadableAccount};
     use std::net::Shutdown::Both;
     use solana_program::instruction::AccountMeta;
     use solana_program::program_option::COption;
@@ -567,8 +565,7 @@ mod tests {
             )
         );
     }
-
-
+    
     #[test]
     fn test_deposit_metaplex() {
         let program_id = crate::entrypoint::id();
@@ -632,6 +629,16 @@ mod tests {
             bridge_token_account.amount,
             1,
         );
+
+        let deposit: Deposit = BorshDeserialize::deserialize(&mut deposit_account.data()).unwrap();
+        assert_eq!(
+            Deposit {
+                network: "Ethereum".to_string(),
+                receiver_address: "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                is_initialized: true,
+            },
+            deposit
+        )
     }
 
     #[test]
@@ -694,6 +701,16 @@ mod tests {
             bridge_token_account.amount,
             0,
         );
+
+        let withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_account.data()).unwrap();
+        assert_eq!(
+            Withdraw {
+                network: "Ethereum".to_string(),
+                is_initialized: true,
+                sender_address: "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+            },
+            withdraw
+        )
     }
 
     fn get_nonce_account(nonce: [u8; 32], owner: &Pubkey, program_id: &Pubkey, size: usize) -> (SolanaAccount, Pubkey) {
