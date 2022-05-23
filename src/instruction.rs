@@ -4,6 +4,9 @@ use solana_program::{
     instruction::{Instruction, AccountMeta},
     sysvar,
 };
+use solana_program::entrypoint::ProgramResult;
+use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE};
+use crate::error::BridgeError;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -28,6 +31,16 @@ pub struct DepositArgs {
     pub nonce: [u8; 32],
 }
 
+impl DepositArgs {
+    pub fn validate(&self) -> ProgramResult {
+        if self.receiver_address.as_bytes().len() > MAX_ADDRESS_SIZE || self.network_to.as_bytes().len() > MAX_NETWORKS_SIZE {
+            return Err(BridgeError::WrongArgsSize.into());
+        }
+
+        Ok(())
+    }
+}
+
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WithdrawArgs {
@@ -37,6 +50,15 @@ pub struct WithdrawArgs {
     pub seeds: [u8; 32],
 }
 
+impl WithdrawArgs {
+    pub fn validate(&self) -> ProgramResult {
+        if self.sender_address.as_bytes().len() > MAX_ADDRESS_SIZE || self.network_from.as_bytes().len() > MAX_NETWORKS_SIZE {
+            return Err(BridgeError::WrongArgsSize.into());
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub enum BridgeInstruction {

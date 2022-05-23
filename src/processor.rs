@@ -41,10 +41,12 @@ pub fn process_instruction<'a>(
         }
         BridgeInstruction::DepositMetaplex(args) => {
             msg!("Instruction: Deposit token");
+            args.validate()?;
             process_deposit_metaplex(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.nonce)
         }
         BridgeInstruction::WithdrawMetaplex(args) => {
             msg!("Instruction: Withdraw token");
+            args.validate()?;
             process_withdraw_metaplex(program_id, accounts, args.seeds, args.deposit_tx, args.network_from, args.sender_address)
         }
     }

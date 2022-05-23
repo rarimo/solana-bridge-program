@@ -37,6 +37,9 @@ pub enum BridgeError {
     /// 9 Wrong token mint account
     #[error("Wrong token metadata account")]
     WrongMetadataAccount,
+    /// 10 Wrong arguments size
+    #[error("Wrong arguments size")]
+    WrongArgsSize,
 }
 
 impl From<BridgeError> for ProgramError {
