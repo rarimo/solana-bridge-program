@@ -142,3 +142,38 @@ pub fn transfer_ownership(
         }).try_to_vec().unwrap(),
     }
 }
+
+
+pub fn deposit_metaplex(
+    program_id: Pubkey,
+    bridge_admin: Pubkey,
+    mint: Pubkey,
+    owner_associated: Pubkey,
+    program_associated: Pubkey,
+    deposit: Pubkey,
+    owner: Pubkey,
+    seeds: [u8; 32],
+    network_to: String,
+    receiver_address: String,
+    nonce: [u8; 32],
+) -> Instruction {
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new_readonly(bridge_admin, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(owner_associated, false),
+            AccountMeta::new(program_associated, false),
+            AccountMeta::new(deposit, false),
+            AccountMeta::new_readonly(owner, true),
+            AccountMeta::new_readonly(spl_token::id(), false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
+        ],
+        data: BridgeInstruction::DepositMetaplex(DepositArgs {
+            network_to,
+            receiver_address,
+            seeds,
+            nonce,
+        }).try_to_vec().unwrap(),
+    }
+}

@@ -22,6 +22,7 @@ use crate::{
     error::BridgeError,
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
 };
+use solana_program::pubkey::PubkeyError;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -59,7 +60,7 @@ pub fn process_init_admin<'a>(
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if bridge_admin_key != *bridge_admin_account_info.key {
         return Err(BridgeError::WrongSeeds.into());
     }
@@ -94,7 +95,7 @@ pub fn process_transfer_ownership<'a>(
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
     let current_admin_account_info = next_account_info(account_info_iter)?;
 
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if bridge_admin_key != *bridge_admin_account_info.key {
         return Err(BridgeError::WrongSeeds.into());
     }
@@ -135,7 +136,7 @@ pub fn process_deposit_metaplex<'a>(
     let token_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_account_info.key != bridge_admin_key {
         return Err(BridgeError::WrongSeeds.into());
     }
@@ -169,12 +170,11 @@ pub fn process_deposit_metaplex<'a>(
         &[
             owner_associated_account_info.clone(),
             program_token_account_info.clone(),
-            token_program.clone(),
             owner_account_info.clone(),
         ],
     )?;
 
-    let deposit_key = Pubkey::create_program_address(&[&nonce], &bridge_admin_key).unwrap();
+    let deposit_key = find_address_with_nonce(nonce, &bridge_admin_key)?;
     if deposit_key != *deposit_account_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
@@ -199,6 +199,7 @@ pub fn process_deposit_metaplex<'a>(
     deposit.serialize(&mut *deposit_account_info.data.borrow_mut())?;
     Ok(())
 }
+
 
 pub fn process_withdraw_metaplex<'a>(
     program_id: &'a Pubkey,
@@ -264,7 +265,6 @@ pub fn process_withdraw_metaplex<'a>(
     invoke_signed(
         &transfer_tokens_instruction,
         &[
-            token_program.clone(),
             program_token_account_info.clone(),
             owner_associated_account_info.clone(),
             bridge_admin_account_info.clone(),
@@ -273,8 +273,7 @@ pub fn process_withdraw_metaplex<'a>(
     )?;
 
 
-    let nonce = hash::hash(tx.as_bytes()).to_bytes();
-    let withdraw_key = Pubkey::create_program_address(&[&nonce], &bridge_admin_key).unwrap();
+    let withdraw_key = find_address_with_nonce(hash::hash(tx.as_bytes()).to_bytes(), &bridge_admin_key)?;
     if withdraw_key != *withdraw_account_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
@@ -300,6 +299,12 @@ pub fn process_withdraw_metaplex<'a>(
     Ok(())
 }
 
+fn find_address_with_nonce(nonce: [u8; 32], owner: &Pubkey) -> Result<Pubkey, PubkeyError> {
+    let (_, bump_seed) = Pubkey::find_program_address(&[&nonce], owner);
+    return Pubkey::create_program_address(&[&nonce, &[bump_seed]], owner);
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,6 +318,8 @@ mod tests {
     };
     use std::net::Shutdown::Both;
     use solana_program::instruction::AccountMeta;
+    use solana_program::program_option::COption;
+    use spl_token::state::{Account, AccountState};
 
     struct SyscallStubs {}
 
@@ -326,7 +333,8 @@ mod tests {
             _signers_seeds: &[&[&[u8]]],
         ) -> ProgramResult {
             msg!("Call invoke signed: {}", _instruction.program_id);
-            Ok(())
+            msg!("Calling token program");
+            spl_token::processor::Processor::process(&_instruction.program_id, _account_infos, &_instruction.data)
         }
 
         fn sol_get_clock_sysvar(&self, _var_addr: *mut u8) -> u64 {
@@ -379,8 +387,12 @@ mod tests {
         create_account_for_test(&Rent::default())
     }
 
+    fn token_program_account() -> SolanaAccount {
+        SolanaAccount::new(0, 0, &spl_token::id())
+    }
+
     #[test]
-    fn test_initialize_mint() {
+    fn test_initialize_bridge_account() {
         let program_id = crate::entrypoint::id();
         let admin_key = Pubkey::new_unique();
         let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
@@ -463,16 +475,8 @@ mod tests {
         let new_admin_key = Pubkey::new_unique();
 
         let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
-        let bridge_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
-
-        let bridge = BridgeAdmin {
-            admin: admin_account.owner,
-            is_initialized: true,
-        };
-
-        let mut bridge_account =
-            SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), 0, &program_id);
-        bridge.serialize(&mut bridge_account.data);
+        let mut bridge_account = SolanaAccount::default();
+        let bridge_key = init_bridge_account(&mut bridge_account, &seeds, &program_id, &admin_account.owner);
 
         let mut other_admin = SolanaAccount::new(0, 0, &Pubkey::new_unique());
 
@@ -547,5 +551,121 @@ mod tests {
                 ],
             )
         );
+    }
+
+
+    #[test]
+    fn test_deposit_metaplex() {
+        let program_id = crate::entrypoint::id();
+        let mut admin_account = SolanaAccount::new(0, 0, &Pubkey::new_unique());
+        let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
+
+        let mut bridge_account = SolanaAccount::default();
+        let bridge_key = init_bridge_account(&mut bridge_account, &seeds, &program_id, &admin_account.owner);
+
+        let mut mint_account = SolanaAccount::default();
+        let mint_key = init_mint_account(&mut mint_account);
+
+        let owner_key = Pubkey::new_unique();
+        let mut owner_account = SolanaAccount::new(0, 0, &owner_key);
+
+        let mut owner_associated_account = SolanaAccount::default();
+        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
+
+        let mut bridge_associated_account = SolanaAccount::default();
+        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
+
+        let nonce = Pubkey::new_unique().to_bytes();
+        let (mut deposit_account, deposit_key) = get_nonce_account(nonce, &bridge_key, &program_id, DEPOSIT_SIZE);
+
+        // positive flow
+        do_process_instruction(
+            deposit_metaplex(
+                program_id,
+                bridge_key,
+                mint_key,
+                owner_associated_key,
+                bridge_associated_key,
+                deposit_key,
+                owner_key,
+                seeds,
+                "Ethereum".to_string(),
+                "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                nonce,
+            ),
+            vec![
+                &mut bridge_account,
+                &mut mint_account,
+                &mut owner_associated_account,
+                &mut bridge_associated_account,
+                &mut deposit_account,
+                &mut owner_account,
+                &mut token_program_account(),
+                &mut rent_sysvar(),
+            ],
+        ).unwrap();
+
+
+        let owner_token_account = Account::unpack_from_slice(owner_associated_account.data.as_slice()).unwrap();
+        let bridge_token_account = Account::unpack_from_slice(bridge_associated_account.data.as_slice()).unwrap();
+        assert_eq!(
+            owner_token_account.amount,
+            0,
+        );
+
+        assert_eq!(
+            bridge_token_account.amount,
+            1,
+        );
+    }
+
+    fn get_nonce_account(nonce: [u8; 32], owner: &Pubkey, program_id: &Pubkey, size: usize) -> (SolanaAccount, Pubkey) {
+        let (_, bump_seed) = Pubkey::find_program_address(&[&nonce], owner);
+
+        return (
+            SolanaAccount::new(Rent::default().minimum_balance(size), size, program_id),
+            Pubkey::create_program_address(&[&nonce, &[bump_seed]], owner).unwrap()
+        );
+    }
+
+    fn init_associated_account(associated_account: &mut SolanaAccount, owner_key: &Pubkey, mint_key: &Pubkey, amount: u64) -> Pubkey {
+        *associated_account = SolanaAccount::new(Rent::default().minimum_balance(Account::LEN), Account::LEN, &owner_key);
+        let mut account = Account {
+            mint: mint_key.clone(),
+            owner: owner_key.clone(),
+            amount,
+            delegate: COption::None,
+            state: AccountState::Initialized,
+            is_native: COption::None,
+            delegated_amount: 0,
+            close_authority: COption::None,
+        };
+        account.pack_into_slice(&mut associated_account.data);
+        return spl_associated_token_account::get_associated_token_address(&owner_key, &mint_key);
+    }
+
+    fn init_mint_account(mint_account: &mut SolanaAccount) -> Pubkey {
+        *mint_account = SolanaAccount::new(Rent::default().minimum_balance(Mint::LEN), Mint::LEN, &spl_token::id());
+        let mut mint = Mint {
+            mint_authority: COption::None,
+            supply: 1,
+            decimals: 0,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        };
+
+        mint.pack_into_slice(&mut mint_account.data);
+        return Pubkey::new_unique();
+    }
+
+    fn init_bridge_account(bridge_account: &mut SolanaAccount, seeds: &[u8; 32], program_id: &Pubkey, admin: &Pubkey) -> Pubkey {
+        *bridge_account =
+            SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), 0, &program_id);
+        let bridge = BridgeAdmin {
+            admin: admin.clone(),
+            is_initialized: true,
+        };
+        bridge.serialize(&mut bridge_account.data);
+        return Pubkey::create_program_address(&[seeds], &program_id).unwrap();
     }
 }
