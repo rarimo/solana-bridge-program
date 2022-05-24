@@ -202,7 +202,6 @@ pub fn process_deposit_metaplex<'a>(
     Ok(())
 }
 
-
 pub fn process_withdraw_metaplex<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
@@ -565,7 +564,7 @@ mod tests {
             )
         );
     }
-    
+
     #[test]
     fn test_deposit_metaplex() {
         let program_id = crate::entrypoint::id();
@@ -617,7 +616,6 @@ mod tests {
             ],
         ).unwrap();
 
-
         let owner_token_account = Account::unpack_from_slice(owner_associated_account.data.as_slice()).unwrap();
         let bridge_token_account = Account::unpack_from_slice(bridge_associated_account.data.as_slice()).unwrap();
         assert_eq!(
@@ -638,7 +636,271 @@ mod tests {
                 is_initialized: true,
             },
             deposit
-        )
+        );
+
+        // wrong seeds
+        assert_eq!(
+            Err(BridgeError::WrongSeeds.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    Pubkey::new_unique(),
+                    mint_key,
+                    owner_associated_key,
+                    bridge_associated_key,
+                    deposit_key,
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut bridge_account,
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut deposit_account,
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        // bridge admin not initialized
+        assert_eq!(
+            Err(BridgeError::NotInitialized.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    bridge_key,
+                    mint_key,
+                    owner_associated_key,
+                    bridge_associated_key,
+                    deposit_key,
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id),
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut deposit_account,
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        // wrong bridge token account
+        assert_eq!(
+            Err(BridgeError::WrongTokenAccount.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    bridge_key,
+                    mint_key,
+                    owner_associated_key,
+                    Pubkey::new_unique(),
+                    deposit_key,
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut bridge_account,
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut deposit_account,
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        // wrong owner token account
+        assert_eq!(
+            Err(BridgeError::WrongTokenAccount.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    bridge_key,
+                    mint_key,
+                    Pubkey::new_unique(),
+                    bridge_associated_key,
+                    deposit_key,
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut bridge_account,
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut deposit_account,
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        let mut owner_associated_account = SolanaAccount::default();
+        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
+
+        let mut bridge_associated_account = SolanaAccount::default();
+        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
+
+        // deposit wrong nonce
+        assert_eq!(
+            Err(BridgeError::WrongNonce.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    bridge_key,
+                    mint_key,
+                    owner_associated_key,
+                    bridge_associated_key,
+                    Pubkey::new_unique(),
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut bridge_account,
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut deposit_account,
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        let mut owner_associated_account = SolanaAccount::default();
+        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
+
+        let mut bridge_associated_account = SolanaAccount::default();
+        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
+
+        // deposit already initialized
+        assert_eq!(
+            Err(BridgeError::AlreadyInUse.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    bridge_key,
+                    mint_key,
+                    owner_associated_key,
+                    bridge_associated_key,
+                    deposit_key,
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut bridge_account,
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut deposit_account,
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        let mut owner_associated_account = SolanaAccount::default();
+        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
+
+        let mut bridge_associated_account = SolanaAccount::default();
+        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
+
+        // deposit account wrong data len
+        assert_eq!(
+            Err(BridgeError::WrongDataLen.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    bridge_key,
+                    mint_key,
+                    owner_associated_key,
+                    bridge_associated_key,
+                    deposit_key,
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut bridge_account,
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut SolanaAccount::new(Rent::default().minimum_balance(DEPOSIT_SIZE), DEPOSIT_SIZE - 1, &program_id),
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
+
+        let mut owner_associated_account = SolanaAccount::default();
+        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
+
+        let mut bridge_associated_account = SolanaAccount::default();
+        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
+
+        // deposit account wrong rent
+        assert_eq!(
+            Err(BridgeError::NotRentExempt.into()),
+            do_process_instruction(
+                deposit_metaplex(
+                    program_id,
+                    bridge_key,
+                    mint_key,
+                    owner_associated_key,
+                    bridge_associated_key,
+                    deposit_key,
+                    owner_key,
+                    seeds,
+                    "Ethereum".to_string(),
+                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    nonce,
+                ),
+                vec![
+                    &mut bridge_account,
+                    &mut mint_account,
+                    &mut owner_associated_account,
+                    &mut bridge_associated_account,
+                    &mut SolanaAccount::new(Rent::default().minimum_balance(DEPOSIT_SIZE - 1), DEPOSIT_SIZE, &program_id),
+                    &mut owner_account,
+                    &mut token_program_account(),
+                    &mut rent_sysvar(),
+                ],
+            )
+        );
     }
 
     #[test]
