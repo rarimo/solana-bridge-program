@@ -303,12 +303,8 @@ fn find_address_with_nonce(nonce: [u8; 32], owner: &Pubkey) -> Result<Pubkey, Pu
 mod tests {
     use super::*;
     use crate::instruction::*;
-    use solana_program::{
-        account_info::IntoAccountInfo, clock::Epoch, instruction::Instruction, program_error,
-        sysvar::rent,
-    };
+    use solana_program::{instruction::Instruction, program_error};
     use solana_sdk::account::{create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount, ReadableAccount};
-    use std::net::Shutdown::Both;
     use solana_program::instruction::AccountMeta;
     use solana_program::program_option::COption;
     use spl_token::state::{Account, AccountState};
@@ -567,7 +563,7 @@ mod tests {
     #[test]
     fn test_deposit_metaplex() {
         let program_id = crate::entrypoint::id();
-        let mut admin_account = SolanaAccount::new(0, 0, &Pubkey::new_unique());
+        let admin_account = SolanaAccount::new(0, 0, &Pubkey::new_unique());
         let seeds = hash::hash("Seed for bridge admin account".as_bytes()).to_bytes();
 
         let mut bridge_account = SolanaAccount::default();
@@ -1312,7 +1308,7 @@ mod tests {
 
     fn init_associated_account(associated_account: &mut SolanaAccount, owner_key: &Pubkey, mint_key: &Pubkey, amount: u64) -> Pubkey {
         *associated_account = SolanaAccount::new(Rent::default().minimum_balance(Account::LEN), Account::LEN, &owner_key);
-        let mut account = Account {
+        let account = Account {
             mint: mint_key.clone(),
             owner: owner_key.clone(),
             amount,
@@ -1328,7 +1324,7 @@ mod tests {
 
     fn init_mint_account(mint_account: &mut SolanaAccount) -> Pubkey {
         *mint_account = SolanaAccount::new(Rent::default().minimum_balance(Mint::LEN), Mint::LEN, &spl_token::id());
-        let mut mint = Mint {
+        let mint = Mint {
             mint_authority: COption::None,
             supply: 1,
             decimals: 0,
