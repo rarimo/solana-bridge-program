@@ -5,7 +5,7 @@ Solana bridge contract will manage all crosschain transfers for Solana Metaplex 
 
 ## Requirements
 - Withdraw operations should be accessible only with the admin signature
-- Bridge contract should be responsible for preventing ‘double-withdrawal’ attac
+- Bridge contract should be responsible for preventing ‘double-withdrawal’ attack
 - There should be an option to change contract admin that should sign withdrawal operations
 
 Let’s clarify that the contract is not responsible for managing what mint account we will use in withdrawal operation. Cause of Solana contracts peculiarities we cannot manage token mint accounts and collect information about its deposits, so the backend service should manage all mint and metadata creation/selection.
