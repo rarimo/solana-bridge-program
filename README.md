@@ -13,15 +13,15 @@ Let’s clarify that the contract is not responsible for managing what mint acco
 
 ## State:
 - BridgeAdmin:
-    0. admin public key
+    - admin public key
   
 - DepositData
-    0. network
-    1. receiver address
+    - network
+    - receiver address
 
 - WithdrawData
-    0. network
-    1. sender address
+    - network
+    - sender address
 
 ## Methods:
 Here we will use the next terms:
