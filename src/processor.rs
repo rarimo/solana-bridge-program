@@ -42,12 +42,12 @@ pub fn process_instruction<'a>(
         BridgeInstruction::DepositMetaplex(args) => {
             msg!("Instruction: Deposit token");
             args.validate()?;
-            process_deposit_metaplex(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.nonce)
+            process_deposit_metaplex(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.token_id, args.nonce)
         }
         BridgeInstruction::WithdrawMetaplex(args) => {
             msg!("Instruction: Withdraw token");
             args.validate()?;
-            process_withdraw_metaplex(program_id, accounts, args.seeds, args.deposit_tx, args.network_from, args.sender_address)
+            process_withdraw_metaplex(program_id, accounts, args.seeds, args.deposit_tx, args.network_from, args.sender_address, args.token_id)
         }
     }
 }
@@ -126,6 +126,7 @@ pub fn process_deposit_metaplex<'a>(
     seeds: [u8; 32],
     network: String,
     receiver: String,
+    token_id: Option<String>,
     nonce: [u8; 32],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -198,6 +199,7 @@ pub fn process_deposit_metaplex<'a>(
     deposit.is_initialized = true;
     deposit.network = network;
     deposit.receiver_address = receiver;
+    deposit.token_id = token_id;
     deposit.serialize(&mut *deposit_account_info.data.borrow_mut())?;
     Ok(())
 }
@@ -209,6 +211,7 @@ pub fn process_withdraw_metaplex<'a>(
     tx: String,
     network: String,
     sender: String,
+    token_id: Option<String>,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
@@ -289,6 +292,7 @@ pub fn process_withdraw_metaplex<'a>(
     withdraw.is_initialized = true;
     withdraw.network = network;
     withdraw.sender_address = sender;
+    withdraw.token_id = token_id;
     withdraw.serialize(&mut *withdraw_account_info.data.borrow_mut())?;
     Ok(())
 }
@@ -597,6 +601,7 @@ mod tests {
                 seeds,
                 "Ethereum".to_string(),
                 "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                Some("123456788".to_string()),
                 nonce,
             ),
             vec![
@@ -629,6 +634,7 @@ mod tests {
                 network: "Ethereum".to_string(),
                 receiver_address: "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
                 is_initialized: true,
+                token_id: Some("123456788".to_string()),
             },
             deposit
         );
@@ -648,6 +654,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -678,6 +685,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -708,6 +716,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -738,6 +747,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -774,6 +784,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -810,6 +821,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -846,6 +858,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -882,6 +895,7 @@ mod tests {
                     seeds,
                     "Ethereum".to_string(),
                     "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
+                    None,
                     nonce,
                 ),
                 vec![
@@ -933,6 +947,7 @@ mod tests {
                 "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                 "Ethereum".to_string(),
                 "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                Some("123456788".to_string()),
             ),
             vec![
                 &mut bridge_account,
@@ -965,6 +980,7 @@ mod tests {
                 network: "Ethereum".to_string(),
                 is_initialized: true,
                 sender_address: "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                token_id: Some("123456788".to_string()),
             },
             withdraw
         );
@@ -985,6 +1001,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,
@@ -1015,6 +1032,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id),
@@ -1045,6 +1063,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,
@@ -1071,6 +1090,7 @@ mod tests {
             "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
             "Ethereum".to_string(),
             "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+            None,
         );
 
         unsigned_instruction.accounts[5] = AccountMeta::new(admin_account.owner, false);
@@ -1108,6 +1128,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,
@@ -1138,6 +1159,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,
@@ -1174,6 +1196,7 @@ mod tests {
                     "0xtxtxtxtxtxttxtxtxtxttxtx".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,
@@ -1210,6 +1233,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,
@@ -1246,6 +1270,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,
@@ -1282,6 +1307,7 @@ mod tests {
                     "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
                     "Ethereum".to_string(),
                     "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
+                    None,
                 ),
                 vec![
                     &mut bridge_account,

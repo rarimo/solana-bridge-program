@@ -7,6 +7,7 @@ use solana_program::{
 use solana_program::entrypoint::ProgramResult;
 use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE};
 use crate::error::BridgeError;
+use solana_program::program_option::COption;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -27,6 +28,7 @@ pub struct TransferOwnershipArgs {
 pub struct DepositArgs {
     pub network_to: String,
     pub receiver_address: String,
+    pub token_id: Option<String>,
     pub seeds: [u8; 32],
     pub nonce: [u8; 32],
 }
@@ -35,6 +37,12 @@ impl DepositArgs {
     pub fn validate(&self) -> ProgramResult {
         if self.receiver_address.as_bytes().len() > MAX_ADDRESS_SIZE || self.network_to.as_bytes().len() > MAX_NETWORKS_SIZE {
             return Err(BridgeError::WrongArgsSize.into());
+        }
+
+        if let Some(token_id) = &self.token_id {
+            if token_id.as_bytes().len() > MAX_ADDRESS_SIZE {
+                return Err(BridgeError::WrongArgsSize.into());
+            }
         }
 
         Ok(())
@@ -47,6 +55,7 @@ pub struct WithdrawArgs {
     pub deposit_tx: String,
     pub network_from: String,
     pub sender_address: String,
+    pub token_id: Option<String>,
     pub seeds: [u8; 32],
 }
 
@@ -54,6 +63,12 @@ impl WithdrawArgs {
     pub fn validate(&self) -> ProgramResult {
         if self.sender_address.as_bytes().len() > MAX_ADDRESS_SIZE || self.network_from.as_bytes().len() > MAX_NETWORKS_SIZE {
             return Err(BridgeError::WrongArgsSize.into());
+        }
+
+        if let Some(token_id) = &self.token_id {
+            if token_id.as_bytes().len() > MAX_ADDRESS_SIZE {
+                return Err(BridgeError::WrongArgsSize.into());
+            }
         }
 
         Ok(())
@@ -176,6 +191,7 @@ pub fn deposit_metaplex(
     seeds: [u8; 32],
     network_to: String,
     receiver_address: String,
+    token_id: Option<String>,
     nonce: [u8; 32],
 ) -> Instruction {
     Instruction {
@@ -194,6 +210,7 @@ pub fn deposit_metaplex(
             network_to,
             receiver_address,
             seeds,
+            token_id,
             nonce,
         }).try_to_vec().unwrap(),
     }
@@ -211,6 +228,7 @@ pub fn withdraw_metaplex(
     deposit_tx: String,
     network_from: String,
     sender_address: String,
+    token_id: Option<String>,
 ) -> Instruction {
     Instruction {
         program_id,
@@ -228,6 +246,7 @@ pub fn withdraw_metaplex(
             deposit_tx,
             network_from,
             seeds,
+            token_id,
             sender_address,
         }).try_to_vec().unwrap(),
     }
