@@ -25,7 +25,7 @@ use crate::{
 use solana_program::pubkey::PubkeyError;
 use mpl_token_metadata::{
     state::DataV2,
-    instruction::{create_metadata_accounts_v2, verify_collection},
+    instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
 };
 
 pub fn process_instruction<'a>(
@@ -463,6 +463,7 @@ pub fn process_create_collection_metaplex<'a>(
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
     let mint_account_info = next_account_info(account_info_iter)?;
     let metadata_account_info = next_account_info(account_info_iter)?;
+    let master_account_info = next_account_info(account_info_iter)?;
     let admin_account_info = next_account_info(account_info_iter)?;
     let payer_account_info = next_account_info(account_info_iter)?;
     let token_program = next_account_info(account_info_iter)?;
@@ -530,8 +531,35 @@ pub fn process_create_collection_metaplex<'a>(
             bridge_admin_account_info.clone(),
             payer_account_info.clone(),
             bridge_admin_account_info.clone(),
-            rent_info.clone(),
             system_program.clone(),
+            rent_info.clone(),
+        ],
+        &[&[&seeds]],
+    )?;
+
+    let create_master_edition_instruction = create_master_edition_v3(
+        *metadata_program.key,
+        *master_account_info.key,
+        *mint_account_info.key,
+        bridge_admin_key,
+        bridge_admin_key,
+        *metadata_account_info.key,
+        *payer_account_info.key,
+        None,
+    );
+
+    invoke_signed(
+        &create_master_edition_instruction,
+        &[
+            master_account_info.clone(),
+            mint_account_info.clone(),
+            bridge_admin_account_info.clone(),
+            bridge_admin_account_info.clone(),
+            payer_account_info.clone(),
+            metadata_account_info.clone(),
+            token_program.clone(),
+            system_program.clone(),
+            rent_info.clone(),
         ],
         &[&[&seeds]],
     )?;

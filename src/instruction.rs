@@ -195,6 +195,7 @@ pub enum BridgeInstruction {
     ///   0. `[]` The BridgeAdmin account
     ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The new metadata account
+    ///   2. `[writable]` The new master edition account
     ///   3. `[signer]` The admin account
     ///   4. `[signer]` The payer account
     ///   5. `[]` Token program id
