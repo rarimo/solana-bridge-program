@@ -25,7 +25,7 @@ use crate::{
 use solana_program::pubkey::PubkeyError;
 use mpl_token_metadata::{
     state::DataV2,
-    instruction::create_metadata_accounts_v2,
+    instruction::{create_metadata_accounts_v2, verify_collection},
 };
 
 pub fn process_instruction<'a>(
@@ -326,9 +326,11 @@ pub fn process_mint_metaplex<'a>(
     let mint_account_info = next_account_info(account_info_iter)?;
     let bridge_token_account_info = next_account_info(account_info_iter)?;
     let metadata_account_info = next_account_info(account_info_iter)?;
+    let collection_account_info = next_account_info(account_info_iter)?;
+    let collection_metadata_account_info = next_account_info(account_info_iter)?;
+    let collection_master_account_info = next_account_info(account_info_iter)?;
     let admin_account_info = next_account_info(account_info_iter)?;
     let payer_account_info = next_account_info(account_info_iter)?;
-
     let token_program = next_account_info(account_info_iter)?;
     let metadata_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
@@ -424,23 +426,29 @@ pub fn process_mint_metaplex<'a>(
         &[&[&seeds]],
     )?;
 
-    /*let remove_authority_instruction = set_authority(
-        token_program.key,
-        mint_account_info.key,
+    let verify_collection_instruction = verify_collection(
+        *metadata_program.key,
+        *metadata_account_info.key,
+        bridge_admin_key,
+        *payer_account_info.key,
+        *collection_account_info.key,
+        *collection_metadata_account_info.key,
+        *collection_master_account_info.key,
         None,
-        AuthorityType::MintTokens,
-        &bridge_admin_key,
-        &[&[]],
-    )?;
+    );
 
     invoke_signed(
-        &remove_authority_instruction,
+        &verify_collection_instruction,
         &[
-            mint_account_info.clone(),
-            bridge_token_account_info.clone(),
+            metadata_account_info.clone(),
+            bridge_admin_account_info.clone(),
+            payer_account_info.clone(),
+            collection_account_info.clone(),
+            collection_metadata_account_info.clone(),
+            collection_master_account_info.clone(),
         ],
         &[&[&seeds]],
-    )?;*/
+    )?;
 
     Ok(())
 }

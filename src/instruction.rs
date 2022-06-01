@@ -155,6 +155,7 @@ pub enum BridgeInstruction {
     WithdrawMetaplex(WithdrawArgs),
 
     /// Make mint authored by bridge.
+    /// Requires collection authored by bridge admin account.
     ///
     /// The `MintMetaplex` MUST be included within the same Transaction as the system program's
     /// `CreateAccount` instruction for all new accounts.
@@ -164,15 +165,22 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
+    ///
     ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The bridge token account
     ///   3. `[writable]` The new metadata account
-    ///   4. `[signer]` The admin account
-    ///   5. `[signer]` The payer account
-    ///   6. `[]` Token program id
-    ///   7. `[]` Token metadata program id
-    ///   8. `[]` Rent sysvar
-    ///   9. `[]` System program
+    ///
+    ///   4. `[]` The collection account
+    ///   5. `[]` The collection metadata account
+    ///   6. `[]` The collection master edition account
+    ///
+    ///   7. `[signer]` The admin account
+    ///   8. `[signer]` The payer account
+    ///
+    ///   9. `[]` Token program id
+    ///   10. `[]` Token metadata program id
+    ///   11. `[]` Rent sysvar
+    ///   12. `[]` System program
     MintMetaplex(MintArgs),
 
     /// Crate Metaplex collection authored by bridge.
