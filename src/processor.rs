@@ -9,7 +9,7 @@ use solana_program::{
 };
 use spl_token::{
     solana_program::program_pack::Pack,
-    instruction::transfer,
+    instruction::{transfer, initialize_mint, set_authority, mint_to},
     state::Mint,
 };
 use spl_associated_token_account::get_associated_token_address;
@@ -23,6 +23,10 @@ use crate::{
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
 };
 use solana_program::pubkey::PubkeyError;
+use mpl_token_metadata::{
+    state::DataV2,
+    instruction::create_metadata_accounts_v2,
+};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -48,6 +52,14 @@ pub fn process_instruction<'a>(
             msg!("Instruction: Withdraw token");
             args.validate()?;
             process_withdraw_metaplex(program_id, accounts, args.seeds, args.deposit_tx, args.network_from, args.sender_address, args.token_id)
+        }
+        BridgeInstruction::MintMetaplex(args) => {
+            msg!("Instruction: Mint token");
+            process_mint_metaplex(program_id, accounts, args.seeds, args.data)
+        }
+        BridgeInstruction::CreateCollectionMetaplex(args) => {
+            msg!("Instruction: Mint token");
+            process_create_collection_metaplex(program_id, accounts, args.seeds, args.data)
         }
     }
 }
@@ -252,8 +264,8 @@ pub fn process_withdraw_metaplex<'a>(
     }
 
     let transfer_tokens_instruction = transfer(
-        &token_program.key,
-        &bridge_token_account_info.key,
+        token_program.key,
+        bridge_token_account_info.key,
         owner_associated_account_info.key,
         &bridge_admin_key,
         &[],
@@ -300,6 +312,223 @@ pub fn process_withdraw_metaplex<'a>(
 fn find_address_with_nonce(nonce: [u8; 32], owner: &Pubkey) -> Result<Pubkey, PubkeyError> {
     let (_, bump_seed) = Pubkey::find_program_address(&[&nonce], owner);
     return Pubkey::create_program_address(&[&nonce, &[bump_seed]], owner);
+}
+
+
+pub fn process_mint_metaplex<'a>(
+    program_id: &'a Pubkey,
+    accounts: &'a [AccountInfo<'a>],
+    seeds: [u8; 32],
+    data: DataV2,
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let bridge_admin_account_info = next_account_info(account_info_iter)?;
+    let mint_account_info = next_account_info(account_info_iter)?;
+    let bridge_token_account_info = next_account_info(account_info_iter)?;
+    let metadata_account_info = next_account_info(account_info_iter)?;
+    let admin_account_info = next_account_info(account_info_iter)?;
+    let payer_account_info = next_account_info(account_info_iter)?;
+
+    let token_program = next_account_info(account_info_iter)?;
+    let metadata_program = next_account_info(account_info_iter)?;
+    let rent_info = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    if *bridge_admin_account_info.key != bridge_admin_key {
+        return Err(BridgeError::WrongSeeds.into());
+    }
+
+    let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
+    if !bridge_admin.is_initialized {
+        return Err(BridgeError::NotInitialized.into());
+    }
+
+    if *admin_account_info.key != bridge_admin.admin {
+        return Err(BridgeError::WrongAdmin.into());
+    }
+
+    if !admin_account_info.is_signer {
+        return Err(BridgeError::UnsignedAdmin.into());
+    }
+
+    if *bridge_token_account_info.key !=
+        get_associated_token_address(&bridge_admin_key, mint_account_info.key) {
+        return Err(BridgeError::WrongTokenAccount.into());
+    }
+
+    let init_mint_instruction = initialize_mint(
+        token_program.key,
+        mint_account_info.key,
+        &bridge_admin_key,
+        None,
+        0,
+    )?;
+
+    invoke(
+        &init_mint_instruction,
+        &[
+            mint_account_info.clone(),
+            rent_info.clone(),
+        ],
+    )?;
+
+    let mint_to_instruction = mint_to(
+        token_program.key,
+        mint_account_info.key,
+        bridge_token_account_info.key,
+        &bridge_admin_key,
+        &[],
+        1,
+    )?;
+
+    invoke_signed(
+        &mint_to_instruction,
+        &[
+            mint_account_info.clone(),
+            bridge_token_account_info.clone(),
+            bridge_admin_account_info.clone(),
+        ],
+        &[&[&seeds]],
+    )?;
+
+    let create_metadata_instruction = create_metadata_accounts_v2(
+        *metadata_program.key,
+        *metadata_account_info.key,
+        *mint_account_info.key,
+        bridge_admin_key,
+        *payer_account_info.key,
+        bridge_admin_key,
+        data.name,
+        data.symbol,
+        data.uri,
+        data.creators,
+        data.seller_fee_basis_points,
+        true,
+        true,
+        data.collection,
+        data.uses,
+    );
+
+    invoke_signed(
+        &create_metadata_instruction,
+        &[
+            metadata_account_info.clone(),
+            mint_account_info.clone(),
+            bridge_admin_account_info.clone(),
+            payer_account_info.clone(),
+            bridge_admin_account_info.clone(),
+            rent_info.clone(),
+            system_program.clone(),
+        ],
+        &[&[&seeds]],
+    )?;
+
+    /*let remove_authority_instruction = set_authority(
+        token_program.key,
+        mint_account_info.key,
+        None,
+        AuthorityType::MintTokens,
+        &bridge_admin_key,
+        &[&[]],
+    )?;
+
+    invoke_signed(
+        &remove_authority_instruction,
+        &[
+            mint_account_info.clone(),
+            bridge_token_account_info.clone(),
+        ],
+        &[&[&seeds]],
+    )?;*/
+
+    Ok(())
+}
+
+pub fn process_create_collection_metaplex<'a>(
+    program_id: &'a Pubkey,
+    accounts: &'a [AccountInfo<'a>],
+    seeds: [u8; 32],
+    data: DataV2,
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let bridge_admin_account_info = next_account_info(account_info_iter)?;
+    let mint_account_info = next_account_info(account_info_iter)?;
+    let metadata_account_info = next_account_info(account_info_iter)?;
+    let admin_account_info = next_account_info(account_info_iter)?;
+    let payer_account_info = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+    let metadata_program = next_account_info(account_info_iter)?;
+    let rent_info = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    if *bridge_admin_account_info.key != bridge_admin_key {
+        return Err(BridgeError::WrongSeeds.into());
+    }
+
+    let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
+    if !bridge_admin.is_initialized {
+        return Err(BridgeError::NotInitialized.into());
+    }
+
+    if *admin_account_info.key != bridge_admin.admin {
+        return Err(BridgeError::WrongAdmin.into());
+    }
+
+    if !admin_account_info.is_signer {
+        return Err(BridgeError::UnsignedAdmin.into());
+    }
+
+    let init_mint_instruction = initialize_mint(
+        token_program.key,
+        mint_account_info.key,
+        &bridge_admin_key,
+        None,
+        0,
+    )?;
+
+    invoke(
+        &init_mint_instruction,
+        &[
+            mint_account_info.clone(),
+            rent_info.clone(),
+        ],
+    )?;
+
+    let create_metadata_instruction = create_metadata_accounts_v2(
+        *metadata_program.key,
+        *metadata_account_info.key,
+        *mint_account_info.key,
+        bridge_admin_key,
+        *payer_account_info.key,
+        bridge_admin_key,
+        data.name,
+        data.symbol,
+        data.uri,
+        data.creators,
+        data.seller_fee_basis_points,
+        true,
+        true,
+        data.collection,
+        data.uses,
+    );
+
+    invoke_signed(
+        &create_metadata_instruction,
+        &[
+            metadata_account_info.clone(),
+            mint_account_info.clone(),
+            bridge_admin_account_info.clone(),
+            payer_account_info.clone(),
+            bridge_admin_account_info.clone(),
+            rent_info.clone(),
+            system_program.clone(),
+        ],
+        &[&[&seeds]],
+    )?;
+
+    Ok(())
 }
 
 

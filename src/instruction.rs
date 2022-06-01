@@ -8,6 +8,7 @@ use solana_program::entrypoint::ProgramResult;
 use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE};
 use crate::error::BridgeError;
 use solana_program::program_option::COption;
+use mpl_token_metadata::state::DataV2;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -75,6 +76,21 @@ impl WithdrawArgs {
     }
 }
 
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct MintArgs {
+    pub data: DataV2,
+    pub seeds: [u8; 32],
+}
+
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct CreateCollectionArgs {
+    pub data: DataV2,
+    pub seeds: [u8; 32],
+}
+
+
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub enum BridgeInstruction {
     /// Initialize new BridgeAdmin that will manage contract operations.
@@ -120,7 +136,6 @@ pub enum BridgeInstruction {
     DepositMetaplex(DepositArgs),
 
     /// Make token withdraw from bridge.
-    /// Contract will transfer existing token or mint and trnasfer the new on
     ///
     /// The `WithdrawMetaplex` MUST be included within the same Transaction as the system program's
     /// `CreateAccount` instruction for all new accounts.
@@ -138,6 +153,47 @@ pub enum BridgeInstruction {
     ///   6. `[]` Token program id
     ///   7. `[]` Rent sysvar
     WithdrawMetaplex(WithdrawArgs),
+
+    /// Make mint authored by bridge.
+    ///
+    /// The `MintMetaplex` MUST be included within the same Transaction as the system program's
+    /// `CreateAccount` instruction for all new accounts.
+    /// Otherwise another party can acquire ownership of the uninitialized
+    /// account.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[]` The BridgeAdmin account
+    ///   1. `[writable]` The token mint account
+    ///   2. `[writable]` The bridge token account
+    ///   3. `[writable]` The new metadata account
+    ///   4. `[signer]` The admin account
+    ///   5. `[signer]` The payer account
+    ///   6. `[]` Token program id
+    ///   7. `[]` Token metadata program id
+    ///   8. `[]` Rent sysvar
+    ///   9. `[]` System program
+    MintMetaplex(MintArgs),
+
+    /// Crate Metaplex collection authored by bridge.
+    ///
+    /// The `CreateCollectionMetaplex` MUST be included within the same Transaction as the system program's
+    /// `CreateAccount` instruction for all new accounts.
+    /// Otherwise another party can acquire ownership of the uninitialized
+    /// account.
+    ///
+    /// Accounts expected by this instruction:
+    ///
+    ///   0. `[]` The BridgeAdmin account
+    ///   1. `[writable]` The token mint account
+    ///   2. `[writable]` The new metadata account
+    ///   3. `[signer]` The admin account
+    ///   4. `[signer]` The payer account
+    ///   5. `[]` Token program id
+    ///   6. `[]` Token metadata program id
+    ///   7. `[]` Rent sysvar
+    ///   8. `[]` System program
+    CreateCollectionMetaplex(CreateCollectionArgs),
 }
 
 pub fn initialize_admin(
