@@ -1,16 +1,8 @@
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    entrypoint::ProgramResult,
-    msg,
-    program::{invoke, invoke_signed},
-    pubkey::Pubkey,
-    sysvar::{rent::Rent, Sysvar},
-    hash,
-};
+use solana_program::{account_info::{next_account_info, AccountInfo}, entrypoint::ProgramResult, msg, program::{invoke, invoke_signed}, pubkey::Pubkey, sysvar::{rent::Rent, Sysvar}, hash, system_instruction};
 use spl_token::{
     solana_program::program_pack::Pack,
     instruction::{transfer, initialize_mint, mint_to},
-    state::Mint,
+    state::{Mint},
 };
 use spl_associated_token_account::get_associated_token_address;
 use borsh::{
@@ -37,7 +29,7 @@ pub fn process_instruction<'a>(
     match instruction {
         BridgeInstruction::InitializeAdmin(args) => {
             msg!("Instruction: Create Bridge Admin");
-            process_init_admin(program_id, accounts, args.seeds, args.admin)
+            process_init_admin(program_id, accounts, args.seeds)
         }
         BridgeInstruction::TransferOwnership(args) => {
             msg!("Instruction: Transfer Bridge Admin ownership");
@@ -64,10 +56,11 @@ pub fn process_init_admin<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
-    admin: Pubkey,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
+    let admin_account_info = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
@@ -75,21 +68,21 @@ pub fn process_init_admin<'a>(
         return Err(BridgeError::WrongSeeds.into());
     }
 
-    if bridge_admin_account_info.data_len() != BRIDGE_ADMIN_SIZE {
-        return Err(BridgeError::WrongDataLen.into());
-    }
-
-    let rent = Rent::from_account_info(rent_info)?;
-    if !rent.is_exempt(bridge_admin_account_info.lamports(), BRIDGE_ADMIN_SIZE) {
-        return Err(BridgeError::NotRentExempt.into());
-    }
+    call_create_account(
+        admin_account_info,
+        bridge_admin_account_info,
+        system_program,
+        rent_info,
+        BRIDGE_ADMIN_SIZE,
+        program_id,
+    )?;
 
     let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
     if bridge_admin.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
     }
 
-    bridge_admin.admin = admin;
+    bridge_admin.admin = *admin_account_info.key;
     bridge_admin.is_initialized = true;
     bridge_admin.serialize(&mut *bridge_admin_account_info.data.borrow_mut())?;
     Ok(())
@@ -145,6 +138,7 @@ pub fn process_deposit_metaplex<'a>(
     let deposit_account_info = next_account_info(account_info_iter)?;
     let owner_account_info = next_account_info(account_info_iter)?;
     let token_program = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
@@ -190,18 +184,18 @@ pub fn process_deposit_metaplex<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
+    call_create_account(
+        owner_account_info,
+        deposit_account_info,
+        system_program,
+        rent_info,
+        DEPOSIT_SIZE,
+        program_id,
+    )?;
+
     let mut deposit: Deposit = BorshDeserialize::deserialize(&mut deposit_account_info.data.borrow_mut().as_ref())?;
     if deposit.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
-    }
-
-    if deposit_account_info.data_len() != DEPOSIT_SIZE {
-        return Err(BridgeError::WrongDataLen.into());
-    }
-
-    let rent = Rent::from_account_info(rent_info)?;
-    if !rent.is_exempt(deposit_account_info.lamports(), DEPOSIT_SIZE) {
-        return Err(BridgeError::NotRentExempt.into());
     }
 
     deposit.is_initialized = true;
@@ -224,11 +218,13 @@ pub fn process_withdraw_metaplex<'a>(
     let account_info_iter = &mut accounts.iter();
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
     let mint_account_info = next_account_info(account_info_iter)?;
+    let owner_account_info = next_account_info(account_info_iter)?;
     let owner_associated_account_info = next_account_info(account_info_iter)?;
     let bridge_token_account_info = next_account_info(account_info_iter)?;
     let withdraw_account_info = next_account_info(account_info_iter)?;
     let admin_account_info = next_account_info(account_info_iter)?;
     let token_program = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
@@ -252,11 +248,6 @@ pub fn process_withdraw_metaplex<'a>(
     if *bridge_token_account_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_account_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
-    }
-
-    let mint = Mint::unpack_from_slice(mint_account_info.data.borrow().as_ref())?;
-    if !mint.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
     }
 
     let transfer_tokens_instruction = transfer(
@@ -283,18 +274,18 @@ pub fn process_withdraw_metaplex<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
+    call_create_account(
+        owner_account_info,
+        withdraw_account_info,
+        system_program,
+        rent_info,
+        WITHDRAW_SIZE,
+        program_id,
+    )?;
+
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_account_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
-    }
-
-    if withdraw_account_info.data_len() != WITHDRAW_SIZE {
-        return Err(BridgeError::WrongDataLen.into());
-    }
-
-    let rent = Rent::from_account_info(rent_info)?;
-    if !rent.is_exempt(withdraw_account_info.lamports(), WITHDRAW_SIZE) {
-        return Err(BridgeError::NotRentExempt.into());
     }
 
     withdraw.is_initialized = true;
@@ -355,6 +346,15 @@ pub fn process_mint_metaplex<'a>(
         get_associated_token_address(&bridge_admin_key, mint_account_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
     }
+
+    call_create_account(
+        payer_account_info,
+        mint_account_info,
+        system_program,
+        rent_info,
+        Mint::LEN,
+        &bridge_admin_key,
+    )?;
 
     call_init_mint(
         token_program.key,
@@ -429,6 +429,31 @@ pub fn process_mint_metaplex<'a>(
     }
 
     Ok(())
+}
+
+fn call_create_account<'a>(
+    payer: &AccountInfo<'a>,
+    account: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    rent_info: &AccountInfo<'a>,
+    space: usize,
+    owner: &Pubkey,
+) -> ProgramResult {
+    let rent = Rent::from_account_info(rent_info)?;
+    invoke(
+        &system_instruction::create_account(
+            payer.key,
+            account.key,
+            rent.minimum_balance(space).max(1),
+            space as u64,
+            owner,
+        ),
+        &[
+            payer.clone(),
+            account.clone(),
+            system_program.clone(),
+        ],
+    )
 }
 
 fn call_mint_to<'a>(
@@ -608,8 +633,12 @@ mod tests {
                 }
             }
 
-            // call token program
-            spl_token::processor::Processor::process(&_instruction.program_id, account_infos.as_slice(), &_instruction.data)
+            if _instruction.program_id == spl_token::id() {
+                // call token program
+                return spl_token::processor::Processor::process(&_instruction.program_id, account_infos.as_slice(), &_instruction.data);
+            }
+
+            Ok(())
         }
 
         fn sol_get_clock_sysvar(&self, _var_addr: *mut u8) -> u64 {
@@ -680,6 +709,8 @@ mod tests {
             initialize_admin(program_id, bridge_key, admin_key, seeds),
             vec![
                 &mut bridge_account,
+                &mut SolanaAccount::default(),
+                &mut SolanaAccount::default(),
                 &mut rent_sysvar(),
             ],
         ).unwrap();
@@ -693,18 +724,6 @@ mod tests {
             bridge
         );
 
-        // account is not rent exempt
-        assert_eq!(
-            Err(BridgeError::NotRentExempt.into()),
-            do_process_instruction(
-                initialize_admin(program_id, bridge_key, admin_key, seeds),
-                vec![
-                    &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE) - 1, BRIDGE_ADMIN_SIZE, &program_id),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
         // create twice
         assert_eq!(
             Err(BridgeError::AlreadyInUse.into()),
@@ -712,6 +731,8 @@ mod tests {
                 initialize_admin(program_id, bridge_key, admin_key, seeds),
                 vec![
                     &mut bridge_account,
+                    &mut SolanaAccount::default(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -724,18 +745,8 @@ mod tests {
                 initialize_admin(program_id, Pubkey::new_unique(), admin_key, seeds),
                 vec![
                     &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
-        // wrong data len
-        assert_eq!(
-            Err(BridgeError::WrongDataLen.into()),
-            do_process_instruction(
-                initialize_admin(program_id, bridge_key, admin_key, seeds),
-                vec![
-                    &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE - 1, &program_id),
+                    &mut SolanaAccount::default(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -876,6 +887,7 @@ mod tests {
                 &mut deposit_account,
                 &mut owner_account,
                 &mut token_program_account(),
+                &mut SolanaAccount::default(),
                 &mut rent_sysvar(),
             ],
         ).unwrap();
@@ -929,6 +941,7 @@ mod tests {
                     &mut deposit_account,
                     &mut owner_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -960,6 +973,7 @@ mod tests {
                     &mut deposit_account,
                     &mut owner_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -991,6 +1005,7 @@ mod tests {
                     &mut deposit_account,
                     &mut owner_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1022,6 +1037,7 @@ mod tests {
                     &mut deposit_account,
                     &mut owner_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1059,117 +1075,7 @@ mod tests {
                     &mut deposit_account,
                     &mut owner_account,
                     &mut token_program_account(),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
-        let mut owner_associated_account = SolanaAccount::default();
-        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
-
-        let mut bridge_associated_account = SolanaAccount::default();
-        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
-
-        // deposit already initialized
-        assert_eq!(
-            Err(BridgeError::AlreadyInUse.into()),
-            do_process_instruction(
-                deposit_metaplex(
-                    program_id,
-                    bridge_key,
-                    mint_key,
-                    owner_associated_key,
-                    bridge_associated_key,
-                    deposit_key,
-                    owner_key,
-                    seeds,
-                    "Ethereum".to_string(),
-                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
-                    None,
-                    nonce,
-                ),
-                vec![
-                    &mut bridge_account,
-                    &mut mint_account,
-                    &mut owner_associated_account,
-                    &mut bridge_associated_account,
-                    &mut deposit_account,
-                    &mut owner_account,
-                    &mut token_program_account(),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
-        let mut owner_associated_account = SolanaAccount::default();
-        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
-
-        let mut bridge_associated_account = SolanaAccount::default();
-        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
-
-        // deposit account wrong data len
-        assert_eq!(
-            Err(BridgeError::WrongDataLen.into()),
-            do_process_instruction(
-                deposit_metaplex(
-                    program_id,
-                    bridge_key,
-                    mint_key,
-                    owner_associated_key,
-                    bridge_associated_key,
-                    deposit_key,
-                    owner_key,
-                    seeds,
-                    "Ethereum".to_string(),
-                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
-                    None,
-                    nonce,
-                ),
-                vec![
-                    &mut bridge_account,
-                    &mut mint_account,
-                    &mut owner_associated_account,
-                    &mut bridge_associated_account,
-                    &mut SolanaAccount::new(Rent::default().minimum_balance(DEPOSIT_SIZE), DEPOSIT_SIZE - 1, &program_id),
-                    &mut owner_account,
-                    &mut token_program_account(),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
-        let mut owner_associated_account = SolanaAccount::default();
-        let owner_associated_key = init_associated_account(&mut owner_associated_account, &owner_key, &mint_key, 1);
-
-        let mut bridge_associated_account = SolanaAccount::default();
-        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 0);
-
-        // deposit account wrong rent
-        assert_eq!(
-            Err(BridgeError::NotRentExempt.into()),
-            do_process_instruction(
-                deposit_metaplex(
-                    program_id,
-                    bridge_key,
-                    mint_key,
-                    owner_associated_key,
-                    bridge_associated_key,
-                    deposit_key,
-                    owner_key,
-                    seeds,
-                    "Ethereum".to_string(),
-                    "0xF65F3f18D9087c4E35BAC5b9746492082e186872".to_string(),
-                    None,
-                    nonce,
-                ),
-                vec![
-                    &mut bridge_account,
-                    &mut mint_account,
-                    &mut owner_associated_account,
-                    &mut bridge_associated_account,
-                    &mut SolanaAccount::new(Rent::default().minimum_balance(DEPOSIT_SIZE - 1), DEPOSIT_SIZE, &program_id),
-                    &mut owner_account,
-                    &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1203,6 +1109,7 @@ mod tests {
                 program_id,
                 bridge_key,
                 mint_key,
+                owner_associated_account.owner,
                 owner_associated_key,
                 bridge_associated_key,
                 withdraw_key,
@@ -1216,11 +1123,13 @@ mod tests {
             vec![
                 &mut bridge_account,
                 &mut mint_account,
+                &mut SolanaAccount::default(),
                 &mut owner_associated_account,
                 &mut bridge_associated_account,
                 &mut withdraw_account,
                 &mut admin_account,
                 &mut token_program_account(),
+                &mut SolanaAccount::default(),
                 &mut rent_sysvar(),
             ],
         ).unwrap();
@@ -1257,6 +1166,7 @@ mod tests {
                     program_id,
                     Pubkey::new_unique(),
                     mint_key,
+                    owner_associated_account.owner,
                     owner_associated_key,
                     bridge_associated_key,
                     withdraw_key,
@@ -1270,11 +1180,13 @@ mod tests {
                 vec![
                     &mut bridge_account,
                     &mut mint_account,
+                    &mut SolanaAccount::default(),
                     &mut owner_associated_account,
                     &mut bridge_associated_account,
                     &mut withdraw_account,
                     &mut admin_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1288,6 +1200,7 @@ mod tests {
                     program_id,
                     bridge_key,
                     mint_key,
+                    owner_associated_account.owner,
                     owner_associated_key,
                     bridge_associated_key,
                     withdraw_key,
@@ -1301,11 +1214,13 @@ mod tests {
                 vec![
                     &mut SolanaAccount::new(Rent::default().minimum_balance(BRIDGE_ADMIN_SIZE), BRIDGE_ADMIN_SIZE, &program_id),
                     &mut mint_account,
+                    &mut SolanaAccount::default(),
                     &mut owner_associated_account,
                     &mut bridge_associated_account,
                     &mut withdraw_account,
                     &mut admin_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1319,6 +1234,7 @@ mod tests {
                     program_id,
                     bridge_key,
                     mint_key,
+                    owner_associated_account.owner,
                     owner_associated_key,
                     bridge_associated_key,
                     withdraw_key,
@@ -1332,11 +1248,13 @@ mod tests {
                 vec![
                     &mut bridge_account,
                     &mut mint_account,
+                    &mut SolanaAccount::default(),
                     &mut owner_associated_account,
                     &mut bridge_associated_account,
                     &mut withdraw_account,
                     &mut admin_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1346,6 +1264,7 @@ mod tests {
             program_id,
             bridge_key,
             mint_key,
+            owner_associated_account.owner,
             owner_associated_key,
             bridge_associated_key,
             withdraw_key,
@@ -1357,7 +1276,7 @@ mod tests {
             None,
         );
 
-        unsigned_instruction.accounts[5] = AccountMeta::new(admin_account.owner, false);
+        unsigned_instruction.accounts[6] = AccountMeta::new(admin_account.owner, false);
         // admin account unsigned
         assert_eq!(
             Err(BridgeError::UnsignedAdmin.into()),
@@ -1366,11 +1285,13 @@ mod tests {
                 vec![
                     &mut bridge_account,
                     &mut mint_account,
+                    &mut SolanaAccount::default(),
                     &mut owner_associated_account,
                     &mut bridge_associated_account,
                     &mut withdraw_account,
                     &mut admin_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1384,6 +1305,7 @@ mod tests {
                     program_id,
                     bridge_key,
                     mint_key,
+                    owner_associated_account.owner,
                     owner_associated_key,
                     Pubkey::new_unique(),
                     withdraw_key,
@@ -1397,42 +1319,13 @@ mod tests {
                 vec![
                     &mut bridge_account,
                     &mut mint_account,
+                    &mut SolanaAccount::default(),
                     &mut owner_associated_account,
                     &mut bridge_associated_account,
                     &mut withdraw_account,
                     &mut admin_account,
                     &mut token_program_account(),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
-        // mint not initialized
-        assert_eq!(
-            Err(BridgeError::NotInitialized.into()),
-            do_process_instruction(
-                withdraw_metaplex(
-                    program_id,
-                    bridge_key,
-                    mint_key,
-                    owner_associated_key,
-                    bridge_associated_key,
-                    withdraw_key,
-                    admin_account.owner,
-                    seeds,
-                    "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
-                    "Ethereum".to_string(),
-                    "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
-                    None,
-                ),
-                vec![
-                    &mut bridge_account,
-                    &mut SolanaAccount::new(Rent::default().minimum_balance(Mint::LEN), Mint::LEN, &spl_token::id()),
-                    &mut owner_associated_account,
-                    &mut bridge_associated_account,
-                    &mut withdraw_account,
-                    &mut admin_account,
-                    &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1452,6 +1345,7 @@ mod tests {
                     program_id,
                     bridge_key,
                     mint_key,
+                    owner_associated_account.owner,
                     owner_associated_key,
                     bridge_associated_key,
                     withdraw_key,
@@ -1465,11 +1359,13 @@ mod tests {
                 vec![
                     &mut bridge_account,
                     &mut mint_account,
+                    &mut SolanaAccount::default(),
                     &mut owner_associated_account,
                     &mut bridge_associated_account,
                     &mut withdraw_account,
                     &mut admin_account,
                     &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
@@ -1489,6 +1385,7 @@ mod tests {
                     program_id,
                     bridge_key,
                     mint_key,
+                    owner_associated_account.owner,
                     owner_associated_key,
                     bridge_associated_key,
                     withdraw_key,
@@ -1502,85 +1399,13 @@ mod tests {
                 vec![
                     &mut bridge_account,
                     &mut mint_account,
+                    &mut SolanaAccount::default(),
                     &mut owner_associated_account,
                     &mut bridge_associated_account,
                     &mut withdraw_account,
                     &mut admin_account,
                     &mut token_program_account(),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
-        let mut owner_associated_account = SolanaAccount::default();
-        let owner_associated_key = init_associated_account(&mut owner_associated_account, &Pubkey::new_unique(), &mint_key, 0);
-
-        let mut bridge_associated_account = SolanaAccount::default();
-        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 1);
-
-        // wrong withdraw size
-        assert_eq!(
-            Err(BridgeError::WrongDataLen.into()),
-            do_process_instruction(
-                withdraw_metaplex(
-                    program_id,
-                    bridge_key,
-                    mint_key,
-                    owner_associated_key,
-                    bridge_associated_key,
-                    withdraw_key,
-                    admin_account.owner,
-                    seeds,
-                    "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
-                    "Ethereum".to_string(),
-                    "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
-                    None,
-                ),
-                vec![
-                    &mut bridge_account,
-                    &mut mint_account,
-                    &mut owner_associated_account,
-                    &mut bridge_associated_account,
-                    &mut SolanaAccount::new(Rent::default().minimum_balance(WITHDRAW_SIZE), WITHDRAW_SIZE - 1, &program_id),
-                    &mut admin_account,
-                    &mut token_program_account(),
-                    &mut rent_sysvar(),
-                ],
-            )
-        );
-
-        let mut owner_associated_account = SolanaAccount::default();
-        let owner_associated_key = init_associated_account(&mut owner_associated_account, &Pubkey::new_unique(), &mint_key, 0);
-
-        let mut bridge_associated_account = SolanaAccount::default();
-        let bridge_associated_key = init_associated_account(&mut bridge_associated_account, &bridge_key, &mint_key, 1);
-
-        // wrong rent for withdraw account
-        assert_eq!(
-            Err(BridgeError::NotRentExempt.into()),
-            do_process_instruction(
-                withdraw_metaplex(
-                    program_id,
-                    bridge_key,
-                    mint_key,
-                    owner_associated_key,
-                    bridge_associated_key,
-                    withdraw_key,
-                    admin_account.owner,
-                    seeds,
-                    "0xe7c7d1b3c59da71c1716b1fc88769857b5d5c8d191d53b9a8d2b66261ecd25ef".to_string(),
-                    "Ethereum".to_string(),
-                    "0xf65f3f18d9087c4e35bac5b9746492082e186872".to_string(),
-                    None,
-                ),
-                vec![
-                    &mut bridge_account,
-                    &mut mint_account,
-                    &mut owner_associated_account,
-                    &mut bridge_associated_account,
-                    &mut SolanaAccount::new(Rent::default().minimum_balance(WITHDRAW_SIZE - 1), WITHDRAW_SIZE, &program_id),
-                    &mut admin_account,
-                    &mut token_program_account(),
+                    &mut SolanaAccount::default(),
                     &mut rent_sysvar(),
                 ],
             )
