@@ -81,15 +81,8 @@ impl WithdrawArgs {
 pub struct MintArgs {
     pub data: DataV2,
     pub seeds: [u8; 32],
+    pub verify: bool,
 }
-
-#[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub struct CreateCollectionArgs {
-    pub data: DataV2,
-    pub seeds: [u8; 32],
-}
-
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub enum BridgeInstruction {
@@ -116,7 +109,7 @@ pub enum BridgeInstruction {
     ///
     TransferOwnership(TransferOwnershipArgs),
 
-    /// Make token deposit on bridge.
+    /// Make NFT deposit on bridge.
     ///
     /// The `DepositMetaplex` MUST be included within the same Transaction as the system program's
     /// `CreateAccount` instruction for all new accounts.
@@ -135,7 +128,7 @@ pub enum BridgeInstruction {
     ///   7. `[]` Rent sysvar
     DepositMetaplex(DepositArgs),
 
-    /// Make token withdraw from bridge.
+    /// Make NFT withdraw from bridge.
     ///
     /// The `WithdrawMetaplex` MUST be included within the same Transaction as the system program's
     /// `CreateAccount` instruction for all new accounts.
@@ -154,8 +147,9 @@ pub enum BridgeInstruction {
     ///   7. `[]` Rent sysvar
     WithdrawMetaplex(WithdrawArgs),
 
-    /// Make mint authored by bridge.
+    /// Make NFT authored by bridge.
     /// Requires collection authored by bridge admin account.
+    /// Also cal call verify collection on Metaplex program if verify=true was passed in arguments.
     ///
     /// The `MintMetaplex` MUST be included within the same Transaction as the system program's
     /// `CreateAccount` instruction for all new accounts.
@@ -169,40 +163,20 @@ pub enum BridgeInstruction {
     ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The bridge token account
     ///   3. `[writable]` The new metadata account
-    ///
-    ///   4. `[]` The collection account
-    ///   5. `[]` The collection metadata account
-    ///   6. `[]` The collection master edition account
-    ///
-    ///   7. `[signer]` The admin account
-    ///   8. `[signer]` The payer account
-    ///
-    ///   9. `[]` Token program id
-    ///   10. `[]` Token metadata program id
-    ///   11. `[]` Rent sysvar
-    ///   12. `[]` System program
-    MintMetaplex(MintArgs),
 
-    /// Crate Metaplex collection authored by bridge.
+    ///   4. `[signer]` The admin account
+    ///   5. `[signer]` The payer account
     ///
-    /// The `CreateCollectionMetaplex` MUST be included within the same Transaction as the system program's
-    /// `CreateAccount` instruction for all new accounts.
-    /// Otherwise another party can acquire ownership of the uninitialized
-    /// account.
+    ///   6. `[]` Token program id
+    ///   7. `[]` Token metadata program id
+    ///   8. `[]` Rent sysvar
+    ///   9. `[]` System program
     ///
-    /// Accounts expected by this instruction:
-    ///
-    ///   0. `[]` The BridgeAdmin account
-    ///   1. `[writable]` The token mint account
-    ///   2. `[writable]` The new metadata account
-    ///   2. `[writable]` The new master edition account
-    ///   3. `[signer]` The admin account
-    ///   4. `[signer]` The payer account
-    ///   5. `[]` Token program id
-    ///   6. `[]` Token metadata program id
-    ///   7. `[]` Rent sysvar
-    ///   8. `[]` System program
-    CreateCollectionMetaplex(CreateCollectionArgs),
+    /// Optional accounts (if verify=true)
+    ///   10. `[]` The collection account
+    ///   11. `[]` The collection metadata account
+    ///   12. `[]` The collection master edition account
+    MintMetaplex(MintArgs),
 }
 
 pub fn initialize_admin(

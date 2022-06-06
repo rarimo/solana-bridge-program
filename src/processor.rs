@@ -9,7 +9,7 @@ use solana_program::{
 };
 use spl_token::{
     solana_program::program_pack::Pack,
-    instruction::{transfer, initialize_mint, set_authority, mint_to},
+    instruction::{transfer, initialize_mint, mint_to},
     state::Mint,
 };
 use spl_associated_token_account::get_associated_token_address;
@@ -55,11 +55,7 @@ pub fn process_instruction<'a>(
         }
         BridgeInstruction::MintMetaplex(args) => {
             msg!("Instruction: Mint token");
-            process_mint_metaplex(program_id, accounts, args.seeds, args.data)
-        }
-        BridgeInstruction::CreateCollectionMetaplex(args) => {
-            msg!("Instruction: Mint token");
-            process_create_collection_metaplex(program_id, accounts, args.seeds, args.data)
+            process_mint_metaplex(program_id, accounts, args.seeds, args.data, args.verify)
         }
     }
 }
@@ -314,23 +310,24 @@ fn find_address_with_nonce(nonce: [u8; 32], owner: &Pubkey) -> Result<Pubkey, Pu
     return Pubkey::create_program_address(&[&nonce, &[bump_seed]], owner);
 }
 
-
 pub fn process_mint_metaplex<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
     data: DataV2,
+    verify: bool,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
+
     let mint_account_info = next_account_info(account_info_iter)?;
     let bridge_token_account_info = next_account_info(account_info_iter)?;
     let metadata_account_info = next_account_info(account_info_iter)?;
-    let collection_account_info = next_account_info(account_info_iter)?;
-    let collection_metadata_account_info = next_account_info(account_info_iter)?;
-    let collection_master_account_info = next_account_info(account_info_iter)?;
+    let master_account_info = next_account_info(account_info_iter)?;
+
     let admin_account_info = next_account_info(account_info_iter)?;
     let payer_account_info = next_account_info(account_info_iter)?;
+
     let token_program = next_account_info(account_info_iter)?;
     let metadata_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
@@ -359,27 +356,93 @@ pub fn process_mint_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
-    let init_mint_instruction = initialize_mint(
+    call_init_mint(
         token_program.key,
-        mint_account_info.key,
-        &bridge_admin_key,
-        None,
-        0,
+        mint_account_info,
+        bridge_admin_account_info,
+        rent_info,
     )?;
 
-    invoke(
-        &init_mint_instruction,
-        &[
-            mint_account_info.clone(),
-            rent_info.clone(),
-        ],
+    call_mint_to(
+        token_program.key,
+        mint_account_info,
+        bridge_token_account_info,
+        bridge_admin_account_info,
+        seeds,
     )?;
 
+    call_create_metadata(
+        *metadata_program.key,
+        metadata_account_info,
+        mint_account_info,
+        bridge_admin_account_info,
+        payer_account_info,
+        bridge_admin_account_info,
+        data,
+        rent_info,
+        system_program,
+        seeds,
+    )?;
+
+    call_create_master_edition(
+        *metadata_program.key,
+        master_account_info,
+        mint_account_info,
+        bridge_admin_account_info,
+        bridge_admin_account_info,
+        metadata_account_info,
+        payer_account_info,
+        token_program,
+        system_program,
+        rent_info,
+        seeds,
+    )?;
+
+    if verify {
+        let collection_account_info = next_account_info(account_info_iter)?;
+        let collection_metadata_account_info = next_account_info(account_info_iter)?;
+        let collection_master_account_info = next_account_info(account_info_iter)?;
+
+        let verify_collection_instruction = verify_collection(
+            *metadata_program.key,
+            *metadata_account_info.key,
+            bridge_admin_key,
+            *payer_account_info.key,
+            *collection_account_info.key,
+            *collection_metadata_account_info.key,
+            *collection_master_account_info.key,
+            None,
+        );
+
+        invoke_signed(
+            &verify_collection_instruction,
+            &[
+                metadata_account_info.clone(),
+                bridge_admin_account_info.clone(),
+                payer_account_info.clone(),
+                collection_account_info.clone(),
+                collection_metadata_account_info.clone(),
+                collection_master_account_info.clone(),
+            ],
+            &[&[&seeds]],
+        )?;
+    }
+
+    Ok(())
+}
+
+fn call_mint_to<'a>(
+    program_id: &Pubkey,
+    mint: &AccountInfo<'a>,
+    account: &AccountInfo<'a>,
+    owner: &AccountInfo<'a>,
+    seeds: [u8; 32],
+) -> ProgramResult {
     let mint_to_instruction = mint_to(
-        token_program.key,
-        mint_account_info.key,
-        bridge_token_account_info.key,
-        &bridge_admin_key,
+        program_id,
+        mint.key,
+        account.key,
+        owner.key,
         &[],
         1,
     )?;
@@ -387,112 +450,24 @@ pub fn process_mint_metaplex<'a>(
     invoke_signed(
         &mint_to_instruction,
         &[
-            mint_account_info.clone(),
-            bridge_token_account_info.clone(),
-            bridge_admin_account_info.clone(),
+            mint.clone(),
+            account.clone(),
+            owner.clone(),
         ],
         &[&[&seeds]],
-    )?;
-
-    let create_metadata_instruction = create_metadata_accounts_v2(
-        *metadata_program.key,
-        *metadata_account_info.key,
-        *mint_account_info.key,
-        bridge_admin_key,
-        *payer_account_info.key,
-        bridge_admin_key,
-        data.name,
-        data.symbol,
-        data.uri,
-        data.creators,
-        data.seller_fee_basis_points,
-        true,
-        true,
-        data.collection,
-        data.uses,
-    );
-
-    invoke_signed(
-        &create_metadata_instruction,
-        &[
-            metadata_account_info.clone(),
-            mint_account_info.clone(),
-            bridge_admin_account_info.clone(),
-            payer_account_info.clone(),
-            bridge_admin_account_info.clone(),
-            rent_info.clone(),
-            system_program.clone(),
-        ],
-        &[&[&seeds]],
-    )?;
-
-    let verify_collection_instruction = verify_collection(
-        *metadata_program.key,
-        *metadata_account_info.key,
-        bridge_admin_key,
-        *payer_account_info.key,
-        *collection_account_info.key,
-        *collection_metadata_account_info.key,
-        *collection_master_account_info.key,
-        None,
-    );
-
-    invoke_signed(
-        &verify_collection_instruction,
-        &[
-            metadata_account_info.clone(),
-            bridge_admin_account_info.clone(),
-            payer_account_info.clone(),
-            collection_account_info.clone(),
-            collection_metadata_account_info.clone(),
-            collection_master_account_info.clone(),
-        ],
-        &[&[&seeds]],
-    )?;
-
-    Ok(())
+    )
 }
 
-pub fn process_create_collection_metaplex<'a>(
-    program_id: &'a Pubkey,
-    accounts: &'a [AccountInfo<'a>],
-    seeds: [u8; 32],
-    data: DataV2,
+fn call_init_mint<'a>(
+    program_id: &Pubkey,
+    mint: &AccountInfo<'a>,
+    mint_authority: &AccountInfo<'a>,
+    rent: &AccountInfo<'a>,
 ) -> ProgramResult {
-    let account_info_iter = &mut accounts.iter();
-    let bridge_admin_account_info = next_account_info(account_info_iter)?;
-    let mint_account_info = next_account_info(account_info_iter)?;
-    let metadata_account_info = next_account_info(account_info_iter)?;
-    let master_account_info = next_account_info(account_info_iter)?;
-    let admin_account_info = next_account_info(account_info_iter)?;
-    let payer_account_info = next_account_info(account_info_iter)?;
-    let token_program = next_account_info(account_info_iter)?;
-    let metadata_program = next_account_info(account_info_iter)?;
-    let rent_info = next_account_info(account_info_iter)?;
-    let system_program = next_account_info(account_info_iter)?;
-
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
-    if *bridge_admin_account_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
-    }
-
-    let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
-    if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
-    }
-
-    if *admin_account_info.key != bridge_admin.admin {
-        return Err(BridgeError::WrongAdmin.into());
-    }
-
-    if !admin_account_info.is_signer {
-        return Err(BridgeError::UnsignedAdmin.into());
-    }
-
     let init_mint_instruction = initialize_mint(
-        token_program.key,
-        mint_account_info.key,
-        &bridge_admin_key,
+        program_id,
+        mint.key,
+        mint_authority.key,
         None,
         0,
     )?;
@@ -500,18 +475,72 @@ pub fn process_create_collection_metaplex<'a>(
     invoke(
         &init_mint_instruction,
         &[
-            mint_account_info.clone(),
-            rent_info.clone(),
+            mint.clone(),
+            rent.clone(),
         ],
-    )?;
+    )
+}
 
+fn call_create_master_edition<'a>(
+    program_id: Pubkey,
+    edition: &AccountInfo<'a>,
+    mint: &AccountInfo<'a>,
+    update_authority: &AccountInfo<'a>,
+    mint_authority: &AccountInfo<'a>,
+    metadata: &AccountInfo<'a>,
+    payer: &AccountInfo<'a>,
+    token_program: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    rent: &AccountInfo<'a>,
+    seeds: [u8; 32],
+) -> ProgramResult {
+    let create_master_edition_instruction = create_master_edition_v3(
+        program_id,
+        *edition.key,
+        *mint_authority.key,
+        *update_authority.key,
+        *mint_authority.key,
+        *metadata.key,
+        *payer.key,
+        None,
+    );
+
+    invoke_signed(
+        &create_master_edition_instruction,
+        &[
+            edition.clone(),
+            mint.clone(),
+            update_authority.clone(),
+            mint_authority.clone(),
+            payer.clone(),
+            metadata.clone(),
+            token_program.clone(),
+            system_program.clone(),
+            rent.clone(),
+        ],
+        &[&[&seeds]],
+    )
+}
+
+fn call_create_metadata<'a>(
+    program_id: Pubkey,
+    metadata_account: &AccountInfo<'a>,
+    mint: &AccountInfo<'a>,
+    mint_authority: &AccountInfo<'a>,
+    payer: &AccountInfo<'a>,
+    update_authority: &AccountInfo<'a>,
+    data: DataV2,
+    rent: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    seeds: [u8; 32],
+) -> ProgramResult {
     let create_metadata_instruction = create_metadata_accounts_v2(
-        *metadata_program.key,
-        *metadata_account_info.key,
-        *mint_account_info.key,
-        bridge_admin_key,
-        *payer_account_info.key,
-        bridge_admin_key,
+        program_id,
+        *metadata_account.key,
+        *mint.key,
+        *mint_authority.key,
+        *payer.key,
+        *mint_authority.key,
         data.name,
         data.symbol,
         data.uri,
@@ -526,47 +555,17 @@ pub fn process_create_collection_metaplex<'a>(
     invoke_signed(
         &create_metadata_instruction,
         &[
-            metadata_account_info.clone(),
-            mint_account_info.clone(),
-            bridge_admin_account_info.clone(),
-            payer_account_info.clone(),
-            bridge_admin_account_info.clone(),
+            metadata_account.clone(),
+            mint.clone(),
+            mint_authority.clone(),
+            payer.clone(),
+            update_authority.clone(),
+            rent.clone(),
             system_program.clone(),
-            rent_info.clone(),
         ],
         &[&[&seeds]],
-    )?;
-
-    let create_master_edition_instruction = create_master_edition_v3(
-        *metadata_program.key,
-        *master_account_info.key,
-        *mint_account_info.key,
-        bridge_admin_key,
-        bridge_admin_key,
-        *metadata_account_info.key,
-        *payer_account_info.key,
-        None,
-    );
-
-    invoke_signed(
-        &create_master_edition_instruction,
-        &[
-            master_account_info.clone(),
-            mint_account_info.clone(),
-            bridge_admin_account_info.clone(),
-            bridge_admin_account_info.clone(),
-            payer_account_info.clone(),
-            metadata_account_info.clone(),
-            token_program.clone(),
-            system_program.clone(),
-            rent_info.clone(),
-        ],
-        &[&[&seeds]],
-    )?;
-
-    Ok(())
+    )
 }
-
 
 #[cfg(test)]
 mod tests {
