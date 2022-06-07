@@ -353,7 +353,7 @@ pub fn process_mint_metaplex<'a>(
         system_program,
         rent_info,
         Mint::LEN,
-        &bridge_admin_key,
+        &spl_token::id(),
     )?;
 
     call_init_mint(
