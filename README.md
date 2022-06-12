@@ -77,3 +77,16 @@ More documentation about PDA, bump seed, etc. you can find [here](https://docs.r
     3. withdrawal account is not initialized.
 
     After all checks, we will transfer token to the user’s account, and initialize withdrawal account information. Nonce for withdrawal account public key will be derived as sha256 hash from tx string.
+
+
+## Build
+
+```commandline
+ npm run build:program-rust
+```
+
+## Deploy
+```commandline
+solana program deploy --program-id ./dist/program/bridge-keypair.json ./dist/program/bridge.so
+```
+
