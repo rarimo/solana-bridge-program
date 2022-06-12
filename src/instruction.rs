@@ -88,10 +88,12 @@ pub struct MintArgs {
 pub enum BridgeInstruction {
     /// Initialize new BridgeAdmin that will manage contract operations.
     ///
+    /// Admin is fee payer.
+    ///
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The BridgeAdmin account to initialize
-    ///   1. `[]` The admin account
+    ///   1. `[writable,signer]` The admin account
     ///   2. `[]` System program
     ///   3. `[]` Rent sysvar
     InitializeAdmin(InitializeAdminArgs),
@@ -114,7 +116,7 @@ pub enum BridgeInstruction {
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The bridge token account
     ///   4. `[writable]` The new Deposit account
-    ///   5. `[signer]` The token owner account
+    ///   5. `[writable,signer]` The token owner account
     ///   6. `[]` Token program id
     ///   7. `[]` System program
     ///   8. `[]` Rent sysvar
@@ -126,7 +128,7 @@ pub enum BridgeInstruction {
     ///
     ///   0. `[]` The BridgeAdmin account
     ///   1. `[]` The token mint account
-    ///   2. `[]` The owner account
+    ///   2. `[writable,signer]` The owner account
     ///   3. `[writable]` The owner token associated account
     ///   4. `[writable]` The bridge token account
     ///   5. `[writable]` The new Withdraw account
@@ -174,8 +176,7 @@ pub fn initialize_admin(
         program_id,
         accounts: vec![
             AccountMeta::new(bridge_admin, false),
-            AccountMeta::new(admin, false),
-            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new(admin, true),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
         data: BridgeInstruction::InitializeAdmin(InitializeAdminArgs {
@@ -226,9 +227,8 @@ pub fn deposit_metaplex(
             AccountMeta::new(owner_associated, false),
             AccountMeta::new(bridge_associated, false),
             AccountMeta::new(deposit, false),
-            AccountMeta::new_readonly(owner, true),
+            AccountMeta::new(owner, true),
             AccountMeta::new_readonly(spl_token::id(), false),
-            AccountMeta::new_readonly(system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
         data: BridgeInstruction::DepositMetaplex(DepositArgs {
@@ -261,13 +261,12 @@ pub fn withdraw_metaplex(
         accounts: vec![
             AccountMeta::new_readonly(bridge_admin, false),
             AccountMeta::new_readonly(mint, false),
-            AccountMeta::new_readonly(owner, false),
+            AccountMeta::new(owner, true),
             AccountMeta::new(owner_associated, false),
             AccountMeta::new(bridge_associated, false),
             AccountMeta::new(withdraw, false),
             AccountMeta::new_readonly(admin, true),
             AccountMeta::new_readonly(spl_token::id(), false),
-            AccountMeta::new_readonly(system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
         data: BridgeInstruction::WithdrawMetaplex(WithdrawArgs {

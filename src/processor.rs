@@ -71,10 +71,11 @@ pub fn process_init_admin<'a>(
     call_create_account(
         admin_account_info,
         bridge_admin_account_info,
-        system_program,
         rent_info,
+        system_program,
         BRIDGE_ADMIN_SIZE,
         program_id,
+        &[&seeds],
     )?;
 
     let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
@@ -179,7 +180,7 @@ pub fn process_deposit_metaplex<'a>(
         ],
     )?;
 
-    let deposit_key = find_address_with_nonce(nonce, &bridge_admin_key)?;
+    let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if deposit_key != *deposit_account_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
@@ -187,11 +188,14 @@ pub fn process_deposit_metaplex<'a>(
     call_create_account(
         owner_account_info,
         deposit_account_info,
-        system_program,
         rent_info,
+        system_program,
         DEPOSIT_SIZE,
         program_id,
+        &[&nonce, &[bump_seed]],
     )?;
+
+    msg!("Deposit account created");
 
     let mut deposit: Deposit = BorshDeserialize::deserialize(&mut deposit_account_info.data.borrow_mut().as_ref())?;
     if deposit.is_initialized {
@@ -269,7 +273,9 @@ pub fn process_withdraw_metaplex<'a>(
         &[&[&seeds]],
     )?;
 
-    let withdraw_key = find_address_with_nonce(hash::hash(tx.as_bytes()).to_bytes(), &bridge_admin_key)?;
+    let nonce = hash::hash(tx.as_bytes()).to_bytes();
+
+    let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if withdraw_key != *withdraw_account_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
@@ -277,11 +283,14 @@ pub fn process_withdraw_metaplex<'a>(
     call_create_account(
         owner_account_info,
         withdraw_account_info,
-        system_program,
         rent_info,
+        system_program,
         WITHDRAW_SIZE,
         program_id,
+        &[&nonce, &[bump_seed]],
     )?;
+
+    msg!("Withdraw account created");
 
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_account_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
@@ -294,11 +303,6 @@ pub fn process_withdraw_metaplex<'a>(
     withdraw.token_id = token_id;
     withdraw.serialize(&mut *withdraw_account_info.data.borrow_mut())?;
     Ok(())
-}
-
-fn find_address_with_nonce(nonce: [u8; 32], owner: &Pubkey) -> Result<Pubkey, PubkeyError> {
-    let (_, bump_seed) = Pubkey::find_program_address(&[&nonce], owner);
-    return Pubkey::create_program_address(&[&nonce, &[bump_seed]], owner);
 }
 
 pub fn process_mint_metaplex<'a>(
@@ -347,14 +351,13 @@ pub fn process_mint_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
-    call_create_account(
-        payer_account_info,
-        mint_account_info,
-        system_program,
-        rent_info,
-        Mint::LEN,
-        &spl_token::id(),
-    )?;
+    /*    call_create_account(
+            payer_account_info,
+            mint_account_info,
+            rent_info,
+            Mint::LEN,
+            &spl_token::id(),
+        )?;*/
 
     call_init_mint(
         token_program.key,
@@ -434,17 +437,18 @@ pub fn process_mint_metaplex<'a>(
 fn call_create_account<'a>(
     payer: &AccountInfo<'a>,
     account: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
     rent_info: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
     space: usize,
     owner: &Pubkey,
+    seeds: &[&[u8]],
 ) -> ProgramResult {
     let rent = Rent::from_account_info(rent_info)?;
-    invoke(
+    invoke_signed(
         &system_instruction::create_account(
             payer.key,
             account.key,
-            rent.minimum_balance(space).max(1),
+            rent.minimum_balance(space),
             space as u64,
             owner,
         ),
@@ -453,6 +457,7 @@ fn call_create_account<'a>(
             account.clone(),
             system_program.clone(),
         ],
+        &[&seeds],
     )
 }
 
