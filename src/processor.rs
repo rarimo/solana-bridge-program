@@ -351,14 +351,6 @@ pub fn process_mint_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
-    /*    call_create_account(
-            payer_account_info,
-            mint_account_info,
-            rent_info,
-            Mint::LEN,
-            &spl_token::id(),
-        )?;*/
-
     call_init_mint(
         token_program.key,
         mint_account_info,

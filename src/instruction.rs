@@ -140,7 +140,8 @@ pub enum BridgeInstruction {
 
     /// Make NFT authored by bridge.
     /// Requires collection authored by bridge admin account.
-    /// Also cal call verify collection on Metaplex program if verify=true was passed in arguments.
+    /// Mint account should be created before in same transaction.
+    /// Also call verify collection on Metaplex program if verify=true was passed in arguments.
     ///
     /// Accounts expected by this instruction:
     ///
