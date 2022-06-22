@@ -82,6 +82,8 @@ pub struct MintArgs {
     pub data: DataV2,
     pub seeds: [u8; 32],
     pub verify: bool,
+    pub token_id: Option<String>,
+    pub address: Option<String>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
@@ -120,6 +122,7 @@ pub enum BridgeInstruction {
     ///   6. `[]` Token program id
     ///   7. `[]` System program
     ///   8. `[]` Rent sysvar
+    ///   9. `[]` Associated token program
     DepositMetaplex(DepositArgs),
 
     /// Make NFT withdraw from bridge.
@@ -136,6 +139,7 @@ pub enum BridgeInstruction {
     ///   7. `[]` Token program id
     ///   8. `[]` System program
     ///   9. `[]` Rent sysvar
+    ///   10. `[]` Associated token program
     WithdrawMetaplex(WithdrawArgs),
 
     /// Make NFT authored by bridge.
@@ -145,25 +149,28 @@ pub enum BridgeInstruction {
     ///
     /// Accounts expected by this instruction:
     ///
-    ///   0. `[]` The BridgeAdmin account
+    ///   0. `[writable]` The BridgeAdmin account
     ///
-    ///   1. `[writable]` The token mint account
+    /// Token mint account should be signed, but the signature can be derived from address and tokenId,
+    /// if you sent it in instruction arguments.
+    ///   1. `[writable,signed]` The token mint account
     ///   2. `[writable]` The bridge token account
     ///   3. `[writable]` The new metadata account
     ///   4. `[writable]` The new master edition account
 
     ///   5. `[signer]` The admin account
-    ///   6. `[signer]` The payer account
+    ///   6. `[writable,signer]` The payer account
     ///
     ///   7. `[]` Token program id
     ///   8. `[]` Token metadata program id
     ///   9. `[]` Rent sysvar
     ///   10. `[]` System program
+    ///   11. `[]` Associated token program
     ///
     /// Optional accounts (if verify=true)
-    ///   11. `[]` The collection account
-    ///   12. `[]` The collection metadata account
-    ///   13. `[]` The collection master edition account
+    ///   12. `[]` The collection account
+    ///   13. `[]` The collection metadata account
+    ///   14. `[]` The collection master edition account
     MintMetaplex(MintArgs),
 }
 

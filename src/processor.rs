@@ -1,10 +1,14 @@
-use solana_program::{account_info::{next_account_info, AccountInfo}, entrypoint::ProgramResult, msg, program::{invoke, invoke_signed}, pubkey::Pubkey, sysvar::{rent::Rent, Sysvar}, hash, system_instruction};
+use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    entrypoint::ProgramResult, msg, program::{invoke, invoke_signed},
+    pubkey::Pubkey, sysvar::{rent::Rent, Sysvar}, hash, system_instruction,
+};
 use spl_token::{
     solana_program::program_pack::Pack,
     instruction::{transfer, initialize_mint, mint_to},
     state::{Mint},
 };
-use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::{get_associated_token_address, create_associated_token_account};
 use borsh::{
     BorshDeserialize, BorshSerialize,
 };
@@ -19,6 +23,7 @@ use mpl_token_metadata::{
     state::DataV2,
     instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
 };
+use spl_token::state::Account;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -47,7 +52,7 @@ pub fn process_instruction<'a>(
         }
         BridgeInstruction::MintMetaplex(args) => {
             msg!("Instruction: Mint token");
-            process_mint_metaplex(program_id, accounts, args.seeds, args.data, args.verify)
+            process_mint_metaplex(program_id, accounts, args.seeds, args.data, args.verify, args.token_id, args.address)
         }
     }
 }
@@ -162,6 +167,18 @@ pub fn process_deposit_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
+    if bridge_token_account_info.data.borrow().as_ref().len() == 0 {
+        call_create_associated_account(
+            owner_account_info,
+            bridge_admin_account_info,
+            mint_account_info,
+            bridge_token_account_info,
+            rent_info,
+            system_program,
+            token_program,
+        )?;
+    }
+
     let transfer_tokens_instruction = transfer(
         token_program.key,
         owner_associated_account_info.key,
@@ -254,6 +271,18 @@ pub fn process_withdraw_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
+    if owner_associated_account_info.data.borrow().as_ref().len() == 0 {
+        call_create_associated_account(
+            owner_account_info,
+            owner_account_info,
+            mint_account_info,
+            owner_associated_account_info,
+            rent_info,
+            system_program,
+            token_program,
+        )?;
+    }
+
     let transfer_tokens_instruction = transfer(
         token_program.key,
         bridge_token_account_info.key,
@@ -311,6 +340,8 @@ pub fn process_mint_metaplex<'a>(
     seeds: [u8; 32],
     data: DataV2,
     verify: bool,
+    token_id: Option<String>,
+    address: Option<String>,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let bridge_admin_account_info = next_account_info(account_info_iter)?;
@@ -327,6 +358,7 @@ pub fn process_mint_metaplex<'a>(
     let metadata_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
+    let associated_program = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
     if *bridge_admin_account_info.key != bridge_admin_key {
@@ -351,11 +383,57 @@ pub fn process_mint_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
+    // Helps to create program derived address for token
+    let seed1: [u8; 32];
+    let seed2: [u8; 32];
+    let seed3: [u8; 1];
+
+    let mut mint_seeds = Vec::new();
+    if let Some(token_id) = token_id {
+        seed1 = hash::hash(token_id.as_bytes()).to_bytes();
+        mint_seeds.push(seed1.as_ref())
+    }
+
+    if let Some(address) = address {
+        seed2 = hash::hash(address.as_bytes()).to_bytes();
+        mint_seeds.push(seed2.as_ref())
+    }
+
+    if mint_seeds.len() > 0 {
+        let (key, bump_seed) = Pubkey::find_program_address(mint_seeds.as_slice(), program_id);
+        if key != *mint_account_info.key {
+            return Err(BridgeError::WrongNonce.into());
+        }
+
+        seed3 = [bump_seed];
+        mint_seeds.push(seed3.as_ref())
+    }
+
+    call_create_account(
+        payer_account_info,
+        mint_account_info,
+        rent_info,
+        system_program,
+        Mint::LEN,
+        token_program.key,
+        mint_seeds.as_slice(),
+    )?;
+
     call_init_mint(
         token_program.key,
         mint_account_info,
         bridge_admin_account_info,
         rent_info,
+    )?;
+
+    call_create_associated_account(
+        payer_account_info,
+        bridge_admin_account_info,
+        mint_account_info,
+        bridge_token_account_info,
+        rent_info,
+        system_program,
+        token_program,
     )?;
 
     call_mint_to(
@@ -424,6 +502,33 @@ pub fn process_mint_metaplex<'a>(
     }
 
     Ok(())
+}
+
+fn call_create_associated_account<'a>(
+    payer: &AccountInfo<'a>,
+    wallet: &AccountInfo<'a>,
+    mint: &AccountInfo<'a>,
+    account: &AccountInfo<'a>,
+    rent_info: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    spl_token: &AccountInfo<'a>,
+) -> ProgramResult {
+    invoke(
+        &create_associated_token_account(
+            payer.key,
+            wallet.key,
+            mint.key,
+        ),
+        &[
+            payer.clone(),
+            account.clone(),
+            wallet.clone(),
+            mint.clone(),
+            system_program.clone(),
+            spl_token.clone(),
+            rent_info.clone()
+        ],
+    )
 }
 
 fn call_create_account<'a>(
@@ -519,12 +624,12 @@ fn call_create_master_edition<'a>(
     let create_master_edition_instruction = create_master_edition_v3(
         program_id,
         *edition.key,
-        *mint_authority.key,
+        *mint.key,
         *update_authority.key,
         *mint_authority.key,
         *metadata.key,
         *payer.key,
-        None,
+        Some(0),
     );
 
     invoke_signed(
