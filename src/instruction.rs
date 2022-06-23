@@ -29,6 +29,9 @@ pub struct TransferOwnershipArgs {
 pub struct DepositArgs {
     pub network_to: String,
     pub receiver_address: String,
+    // original collection address
+    pub address: Option<String>,
+    // original token id
     pub token_id: Option<String>,
     pub seeds: [u8; 32],
     pub nonce: [u8; 32],
@@ -225,6 +228,7 @@ pub fn deposit_metaplex(
     network_to: String,
     receiver_address: String,
     token_id: Option<String>,
+    address: Option<String>,
     nonce: [u8; 32],
 ) -> Instruction {
     Instruction {
@@ -244,6 +248,7 @@ pub fn deposit_metaplex(
             receiver_address,
             seeds,
             token_id,
+            address,
             nonce,
         }).try_to_vec().unwrap(),
     }

@@ -17,6 +17,7 @@ use crate::{
     state::{BridgeAdmin, BRIDGE_ADMIN_SIZE},
     error::BridgeError,
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
+    util
 };
 use solana_program::pubkey::PubkeyError;
 use mpl_token_metadata::{
@@ -24,6 +25,7 @@ use mpl_token_metadata::{
     instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
 };
 use spl_token::state::Account;
+use solana_program::program_error::ProgramError;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -43,7 +45,7 @@ pub fn process_instruction<'a>(
         BridgeInstruction::DepositMetaplex(args) => {
             msg!("Instruction: Deposit token");
             args.validate()?;
-            process_deposit_metaplex(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.token_id, args.nonce)
+            process_deposit_metaplex(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.token_id, args.address, args.nonce)
         }
         BridgeInstruction::WithdrawMetaplex(args) => {
             msg!("Instruction: Withdraw token");
@@ -134,6 +136,7 @@ pub fn process_deposit_metaplex<'a>(
     network: String,
     receiver: String,
     token_id: Option<String>,
+    address: Option<String>,
     nonce: [u8; 32],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -165,6 +168,14 @@ pub fn process_deposit_metaplex<'a>(
     if *owner_associated_account_info.key !=
         get_associated_token_address(&owner_account_info.key, mint_account_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
+    }
+
+    let mut mint_seeds = util::get_mint_seeds(&token_id, &address);
+    if mint_seeds.len() > 0 {
+        let key = Pubkey::find_program_address(mint_seeds.iter().map(|x| x.as_ref()).collect::<Vec<&[u8]>>().as_ref(), program_id).0;
+        if key != *mint_account_info.key {
+            return Err(BridgeError::WrongMint.into());
+        }
     }
 
     if bridge_token_account_info.data.borrow().as_ref().len() == 0 {
@@ -223,6 +234,7 @@ pub fn process_deposit_metaplex<'a>(
     deposit.network = network;
     deposit.receiver_address = receiver;
     deposit.token_id = token_id;
+    deposit.address = address;
     deposit.serialize(&mut *deposit_account_info.data.borrow_mut())?;
     Ok(())
 }
@@ -383,31 +395,9 @@ pub fn process_mint_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
-    // Helps to create program derived address for token
-    let seed1: [u8; 32];
-    let seed2: [u8; 32];
-    let seed3: [u8; 1];
 
-    let mut mint_seeds = Vec::new();
-    if let Some(token_id) = token_id {
-        seed1 = hash::hash(token_id.as_bytes()).to_bytes();
-        mint_seeds.push(seed1.as_ref())
-    }
 
-    if let Some(address) = address {
-        seed2 = hash::hash(address.as_bytes()).to_bytes();
-        mint_seeds.push(seed2.as_ref())
-    }
-
-    if mint_seeds.len() > 0 {
-        let (key, bump_seed) = Pubkey::find_program_address(mint_seeds.as_slice(), program_id);
-        if key != *mint_account_info.key {
-            return Err(BridgeError::WrongNonce.into());
-        }
-
-        seed3 = [bump_seed];
-        mint_seeds.push(seed3.as_ref())
-    }
+    let mint_seeds = util::get_mint_seeds_with_bump(&token_id, &address, mint_account_info, program_id)?;
 
     call_create_account(
         payer_account_info,
@@ -416,7 +406,7 @@ pub fn process_mint_metaplex<'a>(
         system_program,
         Mint::LEN,
         token_program.key,
-        mint_seeds.as_slice(),
+        mint_seeds.iter().map(|x| x.as_ref()).collect::<Vec<&[u8]>>().as_ref(),
     )?;
 
     call_init_mint(
@@ -693,7 +683,7 @@ fn call_create_metadata<'a>(
         &[&[&seeds]],
     )
 }
-
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1564,3 +1554,4 @@ mod tests {
         return Pubkey::create_program_address(&[seeds], &program_id).unwrap();
     }
 }
+*/

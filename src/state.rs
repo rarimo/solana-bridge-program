@@ -23,6 +23,9 @@ pub struct BridgeAdmin {
 pub struct Deposit {
     pub network: String,
     pub receiver_address: String,
+    // original collection address
+    pub address: Option<String>,
+    // original token id
     pub token_id: Option<String>,
     pub is_initialized: bool,
 }
