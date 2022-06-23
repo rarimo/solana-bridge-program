@@ -180,6 +180,7 @@ pub fn process_deposit_metaplex<'a>(
     }
 
     if bridge_token_account_info.data.borrow().as_ref().len() == 0 {
+        msg!("Creating bridge admin associated account");
         call_create_associated_account(
             owner_account_info,
             bridge_admin_account_info,
@@ -200,6 +201,7 @@ pub fn process_deposit_metaplex<'a>(
         1,
     )?;
 
+    msg!("Transferring token");
     invoke(
         &transfer_tokens_instruction,
         &[
@@ -214,6 +216,7 @@ pub fn process_deposit_metaplex<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
+    msg!("Creating deposit account");
     call_create_account(
         owner_account_info,
         deposit_account_info,
@@ -285,6 +288,7 @@ pub fn process_withdraw_metaplex<'a>(
     }
 
     if owner_associated_account_info.data.borrow().as_ref().len() == 0 {
+        msg!("Deposit owner associated account");
         call_create_associated_account(
             owner_account_info,
             owner_account_info,
@@ -305,6 +309,7 @@ pub fn process_withdraw_metaplex<'a>(
         1,
     )?;
 
+    msg!("Transferring token");
     invoke_signed(
         &transfer_tokens_instruction,
         &[
@@ -322,6 +327,7 @@ pub fn process_withdraw_metaplex<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
+    msg!("Creating withdraw account");
     call_create_account(
         owner_account_info,
         withdraw_account_info,
@@ -425,7 +431,7 @@ pub fn process_mint_metaplex<'a>(
             &[],
         )?;
     }
-    
+
     msg!("Initializing mint account");
     call_init_mint(
         token_program.key,
