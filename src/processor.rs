@@ -17,7 +17,7 @@ use crate::{
     state::{BridgeAdmin, BRIDGE_ADMIN_SIZE},
     error::BridgeError,
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
-    util
+    util,
 };
 use solana_program::pubkey::PubkeyError;
 use mpl_token_metadata::{
@@ -170,9 +170,10 @@ pub fn process_deposit_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
-    let mut mint_seeds = util::get_mint_seeds(&token_id, &address);
-    if mint_seeds.len() > 0 {
-        let key = Pubkey::find_program_address(mint_seeds.iter().map(|x| x.as_ref()).collect::<Vec<&[u8]>>().as_ref(), program_id).0;
+
+    let mint_seeds = util::get_mint_seeds(&token_id, &address);
+    if let Some(mint_seeds) = mint_seeds {
+        let (key, ..) = Pubkey::find_program_address(&[&mint_seeds[0], &mint_seeds[1]], program_id);
         if key != *mint_account_info.key {
             return Err(BridgeError::WrongMint.into());
         }
@@ -395,20 +396,38 @@ pub fn process_mint_metaplex<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
+    let mint_seeds = util::get_mint_seeds(&token_id, &address);
+    if let Some(mint_seeds) = mint_seeds {
+        let (key, bump_seed) = Pubkey::find_program_address(&[&mint_seeds[0], &mint_seeds[1]], program_id);
+        if key != *mint_account_info.key {
+            return Err(BridgeError::WrongMint.into());
+        }
+
+        msg!("Creating mint account with seeds");
+        call_create_account(
+            payer_account_info,
+            mint_account_info,
+            rent_info,
+            system_program,
+            Mint::LEN,
+            token_program.key,
+            &[&mint_seeds[0], &mint_seeds[1], &[bump_seed]],
+        )?;
+    } else {
+        msg!("Creating mint account");
+        call_create_account(
+            payer_account_info,
+            mint_account_info,
+            rent_info,
+            system_program,
+            Mint::LEN,
+            token_program.key,
+            &[&[]],
+        )?;
+    }
 
 
-    let mint_seeds = util::get_mint_seeds_with_bump(&token_id, &address, mint_account_info, program_id)?;
-
-    call_create_account(
-        payer_account_info,
-        mint_account_info,
-        rent_info,
-        system_program,
-        Mint::LEN,
-        token_program.key,
-        mint_seeds.iter().map(|x| x.as_ref()).collect::<Vec<&[u8]>>().as_ref(),
-    )?;
-
+    msg!("Initializing mint account");
     call_init_mint(
         token_program.key,
         mint_account_info,
@@ -416,6 +435,7 @@ pub fn process_mint_metaplex<'a>(
         rent_info,
     )?;
 
+    msg!("Crating bridge admin associated account");
     call_create_associated_account(
         payer_account_info,
         bridge_admin_account_info,
@@ -426,6 +446,7 @@ pub fn process_mint_metaplex<'a>(
         token_program,
     )?;
 
+    msg!("Minting token to bridge admin");
     call_mint_to(
         token_program.key,
         mint_account_info,
@@ -434,6 +455,7 @@ pub fn process_mint_metaplex<'a>(
         seeds,
     )?;
 
+    msg!("Creating metadata account");
     call_create_metadata(
         *metadata_program.key,
         metadata_account_info,
@@ -447,6 +469,7 @@ pub fn process_mint_metaplex<'a>(
         seeds,
     )?;
 
+    msg!("Creating master edition account");
     call_create_master_edition(
         *metadata_program.key,
         master_account_info,
@@ -477,6 +500,7 @@ pub fn process_mint_metaplex<'a>(
             None,
         );
 
+        msg!("Verifying collection");
         invoke_signed(
             &verify_collection_instruction,
             &[
