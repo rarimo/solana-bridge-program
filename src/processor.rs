@@ -422,11 +422,10 @@ pub fn process_mint_metaplex<'a>(
             system_program,
             Mint::LEN,
             token_program.key,
-            &[&[]],
+            &[],
         )?;
     }
-
-
+    
     msg!("Initializing mint account");
     call_init_mint(
         token_program.key,
@@ -555,21 +554,26 @@ fn call_create_account<'a>(
     seeds: &[&[u8]],
 ) -> ProgramResult {
     let rent = Rent::from_account_info(rent_info)?;
-    invoke_signed(
-        &system_instruction::create_account(
-            payer.key,
-            account.key,
-            rent.minimum_balance(space),
-            space as u64,
-            owner,
-        ),
-        &[
-            payer.clone(),
-            account.clone(),
-            system_program.clone(),
-        ],
-        &[&seeds],
-    )
+
+    let instruction = system_instruction::create_account(
+        payer.key,
+        account.key,
+        rent.minimum_balance(space),
+        space as u64,
+        owner,
+    );
+
+    let accounts = [
+        payer.clone(),
+        account.clone(),
+        system_program.clone(),
+    ];
+
+    if seeds.len() > 0 {
+        invoke_signed(&instruction, &accounts, &[seeds])
+    } else {
+        invoke(&instruction, &accounts)
+    }
 }
 
 fn call_mint_to<'a>(
