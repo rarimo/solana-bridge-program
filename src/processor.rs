@@ -19,13 +19,10 @@ use crate::{
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
     util,
 };
-use solana_program::pubkey::PubkeyError;
 use mpl_token_metadata::{
     state::DataV2,
     instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
 };
-use spl_token::state::Account;
-use solana_program::program_error::ProgramError;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -54,6 +51,7 @@ pub fn process_instruction<'a>(
         }
         BridgeInstruction::MintMetaplex(args) => {
             msg!("Instruction: Mint token");
+            args.validate()?;
             process_mint_metaplex(program_id, accounts, args.seeds, args.data, args.verify, args.token_id, args.address)
         }
     }
@@ -227,8 +225,6 @@ pub fn process_deposit_metaplex<'a>(
         &[&nonce, &[bump_seed]],
     )?;
 
-    msg!("Deposit account created");
-
     let mut deposit: Deposit = BorshDeserialize::deserialize(&mut deposit_account_info.data.borrow_mut().as_ref())?;
     if deposit.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
@@ -240,6 +236,7 @@ pub fn process_deposit_metaplex<'a>(
     deposit.token_id = token_id;
     deposit.address = address;
     deposit.serialize(&mut *deposit_account_info.data.borrow_mut())?;
+    msg!("Deposit account created");
     Ok(())
 }
 
@@ -338,8 +335,6 @@ pub fn process_withdraw_metaplex<'a>(
         &[&nonce, &[bump_seed]],
     )?;
 
-    msg!("Withdraw account created");
-
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_account_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
@@ -350,6 +345,7 @@ pub fn process_withdraw_metaplex<'a>(
     withdraw.sender_address = sender;
     withdraw.token_id = token_id;
     withdraw.serialize(&mut *withdraw_account_info.data.borrow_mut())?;
+    msg!("Withdraw account created");
     Ok(())
 }
 
@@ -377,7 +373,7 @@ pub fn process_mint_metaplex<'a>(
     let metadata_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
-    let associated_program = next_account_info(account_info_iter)?;
+    let _associated_program = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
     if *bridge_admin_account_info.key != bridge_admin_key {

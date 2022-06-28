@@ -1,15 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::pubkey::Pubkey;
 use solana_program::{
+    pubkey::Pubkey,
     instruction::{Instruction, AccountMeta},
     sysvar,
-    system_program,
+    entrypoint::ProgramResult,
 };
-use solana_program::entrypoint::ProgramResult;
 use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE};
 use crate::error::BridgeError;
-use solana_program::program_option::COption;
 use mpl_token_metadata::state::DataV2;
+use crate::util;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -43,12 +42,8 @@ impl DepositArgs {
             return Err(BridgeError::WrongArgsSize.into());
         }
 
-        if let Some(token_id) = &self.token_id {
-            if token_id.as_bytes().len() > MAX_ADDRESS_SIZE {
-                return Err(BridgeError::WrongArgsSize.into());
-            }
-        }
-
+        util::validate_option_str(&self.token_id, MAX_ADDRESS_SIZE)?;
+        util::validate_option_str(&self.address, MAX_ADDRESS_SIZE)?;
         Ok(())
     }
 }
@@ -69,12 +64,7 @@ impl WithdrawArgs {
             return Err(BridgeError::WrongArgsSize.into());
         }
 
-        if let Some(token_id) = &self.token_id {
-            if token_id.as_bytes().len() > MAX_ADDRESS_SIZE {
-                return Err(BridgeError::WrongArgsSize.into());
-            }
-        }
-
+        util::validate_option_str(&self.token_id, MAX_ADDRESS_SIZE)?;
         Ok(())
     }
 }
@@ -88,6 +78,15 @@ pub struct MintArgs {
     pub token_id: Option<String>,
     pub address: Option<String>,
 }
+
+impl MintArgs {
+    pub fn validate(&self) -> ProgramResult {
+        util::validate_option_str(&self.token_id, MAX_ADDRESS_SIZE)?;
+        util::validate_option_str(&self.address, MAX_ADDRESS_SIZE)?;
+        Ok(())
+    }
+}
+
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub enum BridgeInstruction {
