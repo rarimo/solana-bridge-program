@@ -1,15 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::pubkey::Pubkey;
 use solana_program::{
+    pubkey::Pubkey,
     instruction::{Instruction, AccountMeta},
     sysvar,
-    system_program,
+    entrypoint::ProgramResult,
 };
-use solana_program::entrypoint::ProgramResult;
 use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE};
 use crate::error::BridgeError;
-use solana_program::program_option::COption;
 use mpl_token_metadata::state::DataV2;
+use crate::util;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -29,6 +28,9 @@ pub struct TransferOwnershipArgs {
 pub struct DepositArgs {
     pub network_to: String,
     pub receiver_address: String,
+    // original collection address
+    pub address: Option<String>,
+    // original token id
     pub token_id: Option<String>,
     pub seeds: [u8; 32],
     pub nonce: [u8; 32],
@@ -40,12 +42,8 @@ impl DepositArgs {
             return Err(BridgeError::WrongArgsSize.into());
         }
 
-        if let Some(token_id) = &self.token_id {
-            if token_id.as_bytes().len() > MAX_ADDRESS_SIZE {
-                return Err(BridgeError::WrongArgsSize.into());
-            }
-        }
-
+        util::validate_option_str(&self.token_id, MAX_ADDRESS_SIZE)?;
+        util::validate_option_str(&self.address, MAX_ADDRESS_SIZE)?;
         Ok(())
     }
 }
@@ -66,12 +64,7 @@ impl WithdrawArgs {
             return Err(BridgeError::WrongArgsSize.into());
         }
 
-        if let Some(token_id) = &self.token_id {
-            if token_id.as_bytes().len() > MAX_ADDRESS_SIZE {
-                return Err(BridgeError::WrongArgsSize.into());
-            }
-        }
-
+        util::validate_option_str(&self.token_id, MAX_ADDRESS_SIZE)?;
         Ok(())
     }
 }
@@ -82,7 +75,18 @@ pub struct MintArgs {
     pub data: DataV2,
     pub seeds: [u8; 32],
     pub verify: bool,
+    pub token_id: Option<String>,
+    pub address: Option<String>,
 }
+
+impl MintArgs {
+    pub fn validate(&self) -> ProgramResult {
+        util::validate_option_str(&self.token_id, MAX_ADDRESS_SIZE)?;
+        util::validate_option_str(&self.address, MAX_ADDRESS_SIZE)?;
+        Ok(())
+    }
+}
+
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub enum BridgeInstruction {
@@ -120,6 +124,7 @@ pub enum BridgeInstruction {
     ///   6. `[]` Token program id
     ///   7. `[]` System program
     ///   8. `[]` Rent sysvar
+    ///   9. `[]` Associated token program
     DepositMetaplex(DepositArgs),
 
     /// Make NFT withdraw from bridge.
@@ -136,33 +141,38 @@ pub enum BridgeInstruction {
     ///   7. `[]` Token program id
     ///   8. `[]` System program
     ///   9. `[]` Rent sysvar
+    ///   10. `[]` Associated token program
     WithdrawMetaplex(WithdrawArgs),
 
     /// Make NFT authored by bridge.
     /// Requires collection authored by bridge admin account.
-    /// Also cal call verify collection on Metaplex program if verify=true was passed in arguments.
+    /// Mint account should be created before in same transaction.
+    /// Also call verify collection on Metaplex program if verify=true was passed in arguments.
     ///
     /// Accounts expected by this instruction:
     ///
-    ///   0. `[]` The BridgeAdmin account
+    ///   0. `[writable]` The BridgeAdmin account
     ///
-    ///   1. `[writable]` The token mint account
+    /// Token mint account should be signed, but the signature can be derived from address and tokenId,
+    /// if you sent it in instruction arguments.
+    ///   1. `[writable,signed]` The token mint account
     ///   2. `[writable]` The bridge token account
     ///   3. `[writable]` The new metadata account
     ///   4. `[writable]` The new master edition account
 
     ///   5. `[signer]` The admin account
-    ///   6. `[signer]` The payer account
+    ///   6. `[writable,signer]` The payer account
     ///
     ///   7. `[]` Token program id
     ///   8. `[]` Token metadata program id
     ///   9. `[]` Rent sysvar
     ///   10. `[]` System program
+    ///   11. `[]` Associated token program
     ///
     /// Optional accounts (if verify=true)
-    ///   11. `[]` The collection account
-    ///   12. `[]` The collection metadata account
-    ///   13. `[]` The collection master edition account
+    ///   12. `[]` The collection account
+    ///   13. `[]` The collection metadata account
+    ///   14. `[]` The collection master edition account
     MintMetaplex(MintArgs),
 }
 
@@ -217,6 +227,7 @@ pub fn deposit_metaplex(
     network_to: String,
     receiver_address: String,
     token_id: Option<String>,
+    address: Option<String>,
     nonce: [u8; 32],
 ) -> Instruction {
     Instruction {
@@ -236,6 +247,7 @@ pub fn deposit_metaplex(
             receiver_address,
             seeds,
             token_id,
+            address,
             nonce,
         }).try_to_vec().unwrap(),
     }

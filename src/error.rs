@@ -40,6 +40,9 @@ pub enum BridgeError {
     /// 10 Wrong arguments size
     #[error("Wrong arguments size")]
     WrongArgsSize,
+    /// 11 Wrong mint account key
+    #[error("Wrong mint key")]
+    WrongMint,
 }
 
 impl From<BridgeError> for ProgramError {
