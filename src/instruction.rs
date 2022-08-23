@@ -108,12 +108,19 @@ pub struct WithdrawArgs {
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub struct MintArgs {
+pub struct MintFTArgs {
+    pub data: DataV2,
+    pub seeds: [u8; 32],
+    pub amount: u64,
+    pub decimals: u8,
+}
+
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct MintNFTArgs {
     pub data: DataV2,
     pub seeds: [u8; 32],
     pub verify: bool,
-    pub token_id: Option<String>,
-    pub address: Option<String>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
@@ -224,36 +231,41 @@ pub enum BridgeInstruction {
     ///   10. `[]` Associated token program
     WithdrawNFT(WithdrawArgs),
 
-   /* /// Make NFT authored by bridge.
-    /// Requires collection authored by bridge admin account.
-    /// Mint account should be created before in same transaction.
-    /// Also call verify collection on Metaplex program if verify=true was passed in arguments.
-    ///
+    /// Make FT by bridge.
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The BridgeAdmin account
+    ///   1. `[writable,signed]` The token mint account
+    ///   2. `[writable]` The bridge token account
+    ///   3. `[writable]` The new metadata account
+    ///   4. `[writable,signer]` The payer account
+    ///   5. `[]` Token program id
+    ///   6. `[]` Token metadata program id
+    ///   7. `[]` Rent sysvar
+    ///   8. `[]` System program
+    ///   9. `[]` Associated token program
+    MintFT(MintFTArgs),
+
+    /// Make NFT by bridge.
+    /// Accounts expected by this instruction:
     ///
-    /// Token mint account should be signed, but the signature can be derived from address and tokenId,
-    /// if you sent it in instruction arguments.
+    ///   0. `[writable]` The BridgeAdmin account
     ///   1. `[writable,signed]` The token mint account
     ///   2. `[writable]` The bridge token account
     ///   3. `[writable]` The new metadata account
     ///   4. `[writable]` The new master edition account
-
-    ///   5. `[signer]` The admin account
-    ///   6. `[writable,signer]` The payer account
-    ///
-    ///   7. `[]` Token program id
-    ///   8. `[]` Token metadata program id
-    ///   9. `[]` Rent sysvar
-    ///   10. `[]` System program
-    ///   11. `[]` Associated token program
+    ///   5. `[writable,signer]` The payer account
+    ///   6. `[]` Token program id
+    ///   7. `[]` Token metadata program id
+    ///   8. `[]` Rent sysvar
+    ///   9. `[]` System program
+    ///   10. `[]` Associated token program
     ///
     /// Optional accounts (if verify=true)
-    ///   12. `[]` The collection account
-    ///   13. `[]` The collection metadata account
-    ///   14. `[]` The collection master edition account
-    MintMetaplex(MintArgs),*/
+    ///   11. `[]` The collection account
+    ///   12. `[]` The collection metadata account
+    ///   13. `[]` The collection master edition account
+    MintNFT(MintNFTArgs),
 }
 
 pub fn initialize_admin(
