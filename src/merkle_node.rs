@@ -1,7 +1,7 @@
 use crate::instruction::{TokenType, SignedContent};
 use solana_program::pubkey::Pubkey;
 
-const SOLANA_NETWORK: String = String::from("Solana");
+const SOLANA_NETWORK: &str = "Solana";
 
 pub struct ContentNode {
     pub tx_hash: String,
@@ -34,7 +34,7 @@ impl ContentNode {
             token_id_to: mint,
             receiver,
             network_from: content.network_from.clone(),
-            network_to: SOLANA_NETWORK,
+            network_to: String::from(SOLANA_NETWORK),
             amount: content.amount,
             token_type: content.token_type.clone(),
         }

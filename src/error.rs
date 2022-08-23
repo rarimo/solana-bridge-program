@@ -52,6 +52,9 @@ pub enum BridgeError {
     /// 14 Wrong content hash
     #[error("Wrong content hash")]
     WrongContentHash,
+    /// 15 Wrong signature key
+    #[error("Wrong signature key")]
+    WrongSignature,
 }
 
 impl From<BridgeError> for ProgramError {

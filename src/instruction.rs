@@ -5,16 +5,15 @@ use solana_program::{
     sysvar,
     entrypoint::ProgramResult,
 };
-use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE};
-use crate::error::BridgeError;
 use mpl_token_metadata::state::DataV2;
 use crate::util;
+use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH};
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct InitializeAdminArgs {
     // ECDSA public key
-    pub public_key: [u8; 33],
+    pub public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     // Admin account seeds (also public)
     pub seeds: [u8; 32],
 }
@@ -23,9 +22,9 @@ pub struct InitializeAdminArgs {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct TransferOwnershipArgs {
     // New ECDSA public key
-    pub new_public_key: [u8; 33],
+    pub new_public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     // Signature of new_public_key by old public key
-    pub signature: [u8; 64],
+    pub signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     // Admin account seeds
     pub seeds: [u8; 32],
 }
@@ -101,7 +100,7 @@ pub struct SignedContent {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WithdrawArgs {
     pub content: SignedContent,
-    pub signature: [u8; 64],
+    pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     pub path: Vec<[u8; 32]>,
     pub root: [u8; 32],
     pub seeds: [u8; 32],
@@ -116,15 +115,6 @@ pub struct MintArgs {
     pub token_id: Option<String>,
     pub address: Option<String>,
 }
-
-impl MintArgs {
-    pub fn validate(&self) -> ProgramResult {
-        util::validate_option_str(&self.token_id, MAX_ADDRESS_SIZE)?;
-        util::validate_option_str(&self.address, MAX_ADDRESS_SIZE)?;
-        Ok(())
-    }
-}
-
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub enum BridgeInstruction {
@@ -234,7 +224,7 @@ pub enum BridgeInstruction {
     ///   10. `[]` Associated token program
     WithdrawNFT(WithdrawArgs),
 
-    /// Make NFT authored by bridge.
+   /* /// Make NFT authored by bridge.
     /// Requires collection authored by bridge admin account.
     /// Mint account should be created before in same transaction.
     /// Also call verify collection on Metaplex program if verify=true was passed in arguments.
@@ -263,14 +253,14 @@ pub enum BridgeInstruction {
     ///   12. `[]` The collection account
     ///   13. `[]` The collection metadata account
     ///   14. `[]` The collection master edition account
-    MintMetaplex(MintArgs),
+    MintMetaplex(MintArgs),*/
 }
 
 pub fn initialize_admin(
     program_id: Pubkey,
     bridge_admin: Pubkey,
     fee_payer: Pubkey,
-    public_key: [u8; 33],
+    public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     seeds: [u8; 32],
 ) -> Instruction {
     Instruction {
@@ -290,8 +280,8 @@ pub fn initialize_admin(
 pub fn transfer_ownership(
     program_id: Pubkey,
     bridge_admin: Pubkey,
-    signature: [u8; 64],
-    new_public_key: [u8; 33],
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    new_public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     seeds: [u8; 32],
 ) -> Instruction {
     Instruction {
@@ -329,7 +319,7 @@ pub fn deposit_native(
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
-        data: BridgeInstruction::DepositMetaplex(DepositNativeArgs {
+        data: BridgeInstruction::DepositNative(DepositNativeArgs {
             amount,
             network_to,
             receiver_address,
@@ -420,7 +410,7 @@ pub fn withdraw_native(
     withdraw: Pubkey,
     seeds: [u8; 32],
     content: SignedContent,
-    signature: [u8; 64],
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     path: Vec<[u8; 32]>,
     root: [u8; 32],
 ) -> Instruction {
@@ -454,6 +444,7 @@ pub fn withdraw_ft(
     withdraw: Pubkey,
     seeds: [u8; 32],
     content: SignedContent,
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     path: Vec<[u8; 32]>,
     root: [u8; 32],
 ) -> Instruction {
@@ -491,6 +482,7 @@ pub fn withdraw_nft(
     withdraw: Pubkey,
     seeds: [u8; 32],
     content: SignedContent,
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     path: Vec<[u8; 32]>,
     root: [u8; 32],
 ) -> Instruction {

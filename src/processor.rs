@@ -4,7 +4,6 @@ use solana_program::{
     pubkey::Pubkey, sysvar::{rent::Rent, Sysvar}, hash, system_instruction,
 };
 use spl_token::{
-    solana_program::program_pack::Pack,
     instruction::{transfer, initialize_mint, mint_to},
     state::{Mint},
 };
@@ -17,18 +16,16 @@ use crate::{
     state::{BridgeAdmin, BRIDGE_ADMIN_SIZE},
     error::BridgeError,
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
-    util,
 };
 use mpl_token_metadata::{
     state::DataV2,
     instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
 };
 
-use secp256k1::{Secp256k1, Message, PublicKey};
-use secp256k1::ecdsa::Signature;
 use crate::util::{verify_ecdsa_signature, verify_merkle_path, verify_signed_content};
 use crate::state::TokenType;
 use crate::instruction::SignedContent;
+use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -90,7 +87,7 @@ pub fn process_init_admin<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
-    public_key: [u8; 33],
+    public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -116,14 +113,14 @@ pub fn process_init_admin<'a>(
     )?;
 
 
-    let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
+    let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if bridge_admin.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
     }
 
     bridge_admin.public_key = public_key;
     bridge_admin.is_initialized = true;
-    bridge_admin.serialize(&mut *bridge_admin_account_info.data.borrow_mut())?;
+    bridge_admin.serialize(&mut *bridge_admin_info.data.borrow_mut())?;
     Ok(())
 }
 
@@ -131,8 +128,8 @@ pub fn process_transfer_ownership<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
-    new_public_key: [u8; 33],
-    signature: [u8; 64],
+    new_public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let bridge_admin_info = next_account_info(account_info_iter)?;
@@ -151,7 +148,7 @@ pub fn process_transfer_ownership<'a>(
     verify_ecdsa_signature(new_public_key.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
 
     bridge_admin.public_key = new_public_key;
-    bridge_admin.serialize(&mut *bridge_admin_account_info.data.borrow_mut())?;
+    bridge_admin.serialize(&mut *bridge_admin_info.data.borrow_mut())?;
     Ok(())
 }
 
@@ -186,21 +183,8 @@ pub fn process_deposit_native<'a>(
     }
 
     let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if deposit_key != *deposit_account_info.key {
+    if deposit_key != *deposit_info.key {
         return Err(BridgeError::WrongNonce.into());
-    }
-
-    if bridge_token_account_info.data.borrow().as_ref().len() == 0 {
-        msg!("Creating bridge admin associated account");
-        call_create_associated_account(
-            owner_info,
-            bridge_admin_info,
-            mint_info,
-            bridge_associated_info,
-            rent_info,
-            system_program,
-            token_program,
-        )?;
     }
 
     //TODO: check for working
@@ -245,7 +229,7 @@ pub fn process_deposit_native<'a>(
     deposit.mint = Option::None;
     deposit.network = network;
     deposit.receiver_address = receiver;
-    deposit.serialize(&mut *deposit_account_info.data.borrow_mut())?;
+    deposit.serialize(&mut *deposit_info.data.borrow_mut())?;
     msg!("Deposit account created");
     Ok(())
 }
@@ -289,11 +273,11 @@ pub fn process_deposit_ft<'a>(
     }
 
     let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if deposit_key != *deposit_account_info.key {
+    if deposit_key != *deposit_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
-    if bridge_token_account_info.data.borrow().as_ref().len() == 0 {
+    if bridge_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Creating bridge admin associated account");
         call_create_associated_account(
             owner_info,
@@ -347,7 +331,7 @@ pub fn process_deposit_ft<'a>(
     deposit.network = network;
     deposit.receiver_address = receiver;
     deposit.amount = amount;
-    deposit.serialize(&mut *deposit_account_info.data.borrow_mut())?;
+    deposit.serialize(&mut *deposit_info.data.borrow_mut())?;
     msg!("Deposit account created");
     Ok(())
 }
@@ -389,11 +373,11 @@ pub fn process_deposit_nft<'a>(
     }
 
     let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if deposit_key != *deposit_account_info.key {
+    if deposit_key != *deposit_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
-    if bridge_token_account_info.data.borrow().as_ref().len() == 0 {
+    if bridge_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Creating bridge admin associated account");
         call_create_associated_account(
             owner_info,
@@ -447,7 +431,7 @@ pub fn process_deposit_nft<'a>(
     deposit.mint = Option::Some(mint_info.key.clone());
     deposit.network = network;
     deposit.receiver_address = receiver;
-    deposit.serialize(&mut *deposit_account_info.data.borrow_mut())?;
+    deposit.serialize(&mut *deposit_info.data.borrow_mut())?;
     msg!("Deposit account created");
     Ok(())
 }
@@ -456,7 +440,7 @@ pub fn process_withdraw_native<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
-    signature: [u8; 64],
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     path: Vec<[u8; 32]>,
     root: [u8; 32],
     content: SignedContent,
@@ -472,16 +456,16 @@ pub fn process_withdraw_native<'a>(
     let rent_info = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
-    if *bridge_admin_account_info.key != bridge_admin_key {
+    if *bridge_admin_info.key != bridge_admin_key {
         return Err(BridgeError::WrongSeeds.into());
     }
 
-    let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_account_info.data.borrow_mut().as_ref())?;
+    let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = hash::hash(tx.as_bytes()).to_bytes();
+    let nonce = hash::hash(content.tx_hash.as_bytes()).to_bytes();
 
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if withdraw_key != *withdraw_info.key {
@@ -532,7 +516,7 @@ pub fn process_withdraw_native<'a>(
     withdraw.token_type = TokenType::Native;
     withdraw.mint = Option::None;
     withdraw.amount = content.amount;
-    withdraw.network = network;
+    withdraw.network = content.network_from;
     withdraw.receiver_address = *owner_info.key;
     withdraw.serialize(&mut *withdraw_info.data.borrow_mut())?;
     msg!("Withdraw account created");
@@ -543,7 +527,7 @@ pub fn process_withdraw_ft<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
-    signature: [u8; 64],
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     path: Vec<[u8; 32]>,
     root: [u8; 32],
     content: SignedContent,
@@ -571,10 +555,10 @@ pub fn process_withdraw_ft<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = hash::hash(tx.as_bytes()).to_bytes();
+    let nonce = hash::hash(content.tx_hash.as_bytes()).to_bytes();
 
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if withdraw_key != *withdraw_account_info.key {
+    if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
@@ -641,9 +625,9 @@ pub fn process_withdraw_ft<'a>(
     withdraw.token_type = TokenType::FT;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = content.amount;
-    withdraw.network = network;
+    withdraw.network = content.network_from;
     withdraw.receiver_address = *owner_info.key;
-    withdraw.serialize(&mut *withdraw_account_info.data.borrow_mut())?;
+    withdraw.serialize(&mut *withdraw_info.data.borrow_mut())?;
     msg!("Withdraw account created");
     Ok(())
 }
@@ -652,7 +636,7 @@ pub fn process_withdraw_nft<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
-    signature: [u8; 64],
+    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     path: Vec<[u8; 32]>,
     root: [u8; 32],
     content: SignedContent,
@@ -680,10 +664,10 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = hash::hash(tx.as_bytes()).to_bytes();
+    let nonce = hash::hash(content.tx_hash.as_bytes()).to_bytes();
 
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if withdraw_key != *withdraw_account_info.key {
+    if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
@@ -750,9 +734,9 @@ pub fn process_withdraw_nft<'a>(
     withdraw.token_type = TokenType::NFT;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = 1;
-    withdraw.network = network;
+    withdraw.network = content.network_from;
     withdraw.receiver_address = *owner_info.key;
-    withdraw.serialize(&mut *withdraw_account_info.data.borrow_mut())?;
+    withdraw.serialize(&mut *withdraw_info.data.borrow_mut())?;
     msg!("Withdraw account created");
     Ok(())
 }

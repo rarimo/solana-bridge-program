@@ -3,13 +3,9 @@ use solana_program::{
     hash, msg,
     entrypoint::ProgramResult,
 };
-
-use secp256k1::{Secp256k1, Message, PublicKey};
-use secp256k1::ecdsa::Signature;
-use crate::error::BridgeError::WrongMerklePath;
 use crate::instruction::SignedContent;
 use crate::merkle_node::ContentNode;
-use solana_program::pubkey::Pubkey;
+use solana_program::secp256k1_recover::{secp256k1_recover, Secp256k1Pubkey};
 
 pub(crate) fn get_mint_seeds(token_id: &Option<String>, address: &Option<String>) -> Option<[[u8; 32]; 2]> {
     if let (Some(token_id), Some(address)) = (token_id, address) {
@@ -29,14 +25,18 @@ pub(crate) fn validate_option_str(opt: &Option<String>, sz: usize) -> ProgramRes
     Ok(())
 }
 
-pub(crate) fn verify_ecdsa_signature(message: &[u8], sig: &[u8], key: &[u8]) -> ProgramResult {
-    let secp = Secp256k1::new();
+pub(crate) fn verify_ecdsa_signature(message: &[u8], sig: &[u8], target_key: &[u8]) -> ProgramResult {
+    let recovered_key = secp256k1_recover(hash::hash(message).as_ref(), 0, sig);
+    if recovered_key.is_err() {
+        return ProgramResult::Err(BridgeError::WrongSignature.into());
+    }
 
-    let msg = Message::from_slice(hash::hash(message).as_ref())?;
-    let signature = Signature::from_compact(sig)?;
-    let pubkey = PublicKey::from_slice(key)?;
+    let key = Secp256k1Pubkey::new(target_key);
 
-    secp.verify_ecdsa(&msg, &signature, &pubkey)?;
+    if recovered_key.unwrap().ne(&key) {
+        return ProgramResult::Err(BridgeError::WrongSignature.into());
+    }
+
     Ok(())
 }
 
@@ -53,7 +53,7 @@ pub(crate) fn verify_merkle_path(path: &Vec<[u8; 32]>, root: [u8; 32]) -> Progra
         hash = hash::hash(sum.as_slice()).to_bytes();
     }
 
-    if path != root {
+    if hash != root {
         return ProgramResult::Err(BridgeError::WrongMerkleRoot.into());
     }
 
@@ -62,7 +62,7 @@ pub(crate) fn verify_merkle_path(path: &Vec<[u8; 32]>, root: [u8; 32]) -> Progra
 
 pub(crate) fn verify_signed_content(target_hash: [u8; 32], content: &SignedContent, mint: String, collection: String, receiver: String) -> ProgramResult {
     let hash = hash::hash(ContentNode::new(content, mint, collection, receiver).to_string().as_bytes());
-    if hash != target_hash {
+    if hash.to_bytes() != target_hash {
         return ProgramResult::Err(BridgeError::WrongContentHash.into());
     }
     Ok(())
