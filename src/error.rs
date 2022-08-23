@@ -43,6 +43,15 @@ pub enum BridgeError {
     /// 11 Wrong mint account key
     #[error("Wrong mint key")]
     WrongMint,
+    /// 12 Wrong Merkle path array
+    #[error("Wrong merkle path")]
+    WrongMerklePath,
+    /// 13 Wrong Merkle root
+    #[error("Wrong merkle root")]
+    WrongMerkleRoot,
+    /// 14 Wrong content hash
+    #[error("Wrong content hash")]
+    WrongContentHash,
 }
 
 impl From<BridgeError> for ProgramError {
