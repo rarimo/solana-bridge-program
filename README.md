@@ -23,7 +23,9 @@ pub enum TokenType {
 }
 ```
 
-The BridgeAdmin account stores ECDSA t-n public key 
+The BridgeAdmin account stores ECDSA t-n public key. Bridge admin account is a program derived account - which means that only bridge program can modify it's state. 
+For creating new BridgeAdmin account you should generate the seed (public 32-byte array) 
+that defines the account address by special function that accepts that seed and bridge program id.
 ```rust
 pub struct BridgeAdmin {
     pub public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
