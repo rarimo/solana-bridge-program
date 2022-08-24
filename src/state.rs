@@ -31,6 +31,7 @@ pub struct BridgeAdmin {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Deposit {
     pub token_type: TokenType,
+    // None for native token
     pub mint: Option<Pubkey>,
     pub amount: u64,
     // Network to

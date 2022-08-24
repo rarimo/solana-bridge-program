@@ -55,6 +55,9 @@ pub enum BridgeError {
     /// 15 Wrong signature key
     #[error("Wrong signature key")]
     WrongSignature,
+    /// 16 Wrong token type in the content
+    #[error("Wrong token type")]
+    WrongTokenType,
 }
 
 impl From<BridgeError> for ProgramError {

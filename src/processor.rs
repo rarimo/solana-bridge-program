@@ -2,31 +2,34 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult, msg, program::{invoke, invoke_signed},
     pubkey::Pubkey, sysvar::{rent::Rent, Sysvar}, hash, system_instruction,
+    secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH},
 };
 use spl_token::{
     instruction::{transfer, initialize_mint, mint_to},
+    solana_program::program_pack::Pack,
     state::{Mint},
 };
 use spl_associated_token_account::{get_associated_token_address, create_associated_token_account};
-use borsh::{
-    BorshDeserialize, BorshSerialize,
-};
-use crate::{
-    instruction::BridgeInstruction,
-    state::{BridgeAdmin, BRIDGE_ADMIN_SIZE},
-    error::BridgeError,
-    state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
-};
 use mpl_token_metadata::{
     state::DataV2,
     instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
 };
+use borsh::{
+    BorshDeserialize, BorshSerialize,
+};
+use crate::{
+    instruction::{
+        BridgeInstruction,
+        SignedContent,
+        TokenType,
+    },
+    state::{BridgeAdmin, BRIDGE_ADMIN_SIZE},
+    error::BridgeError,
+    state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
+    util::{verify_ecdsa_signature, verify_merkle_path, verify_signed_content},
+};
+use crate::state::TokenType::{NFT, FT, Native};
 
-use crate::util::{verify_ecdsa_signature, verify_merkle_path, verify_signed_content};
-use crate::state::TokenType;
-use crate::instruction::SignedContent;
-use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH};
-use spl_token::solana_program::program_pack::Pack;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -232,7 +235,7 @@ pub fn process_deposit_native<'a>(
     }
 
     deposit.is_initialized = true;
-    deposit.token_type = TokenType::Native;
+    deposit.token_type = Native;
     deposit.amount = amount;
     deposit.mint = Option::None;
     deposit.network = network;
@@ -335,7 +338,7 @@ pub fn process_deposit_ft<'a>(
 
     deposit.is_initialized = true;
     deposit.mint = Option::Some(mint_info.key.clone());
-    deposit.token_type = TokenType::FT;
+    deposit.token_type = FT;
     deposit.network = network;
     deposit.receiver_address = receiver;
     deposit.amount = amount;
@@ -435,7 +438,7 @@ pub fn process_deposit_nft<'a>(
 
     deposit.is_initialized = true;
     deposit.amount = 1;
-    deposit.token_type = TokenType::NFT;
+    deposit.token_type = NFT;
     deposit.mint = Option::Some(mint_info.key.clone());
     deposit.network = network;
     deposit.receiver_address = receiver;
@@ -480,6 +483,10 @@ pub fn process_withdraw_native<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
+    if content.token_type.ne(&TokenType::Native) {
+        return Err(BridgeError::WrongTokenType.into());
+    }
+
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
     verify_merkle_path(&path, root)?;
     verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
@@ -521,7 +528,7 @@ pub fn process_withdraw_native<'a>(
     }
 
     withdraw.is_initialized = true;
-    withdraw.token_type = TokenType::Native;
+    withdraw.token_type = Native;
     withdraw.mint = Option::None;
     withdraw.amount = content.amount;
     withdraw.network = content.network_from;
@@ -568,6 +575,10 @@ pub fn process_withdraw_ft<'a>(
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
+    }
+
+    if content.token_type.ne(&TokenType::MetaplexFT) {
+        return Err(BridgeError::WrongTokenType.into());
     }
 
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
@@ -630,7 +641,7 @@ pub fn process_withdraw_ft<'a>(
     }
 
     withdraw.is_initialized = true;
-    withdraw.token_type = TokenType::FT;
+    withdraw.token_type = FT;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = content.amount;
     withdraw.network = content.network_from;
@@ -677,6 +688,10 @@ pub fn process_withdraw_nft<'a>(
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
+    }
+
+    if content.token_type.ne(&TokenType::MetaplexNFT) {
+        return Err(BridgeError::WrongTokenType.into());
     }
 
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
@@ -739,7 +754,7 @@ pub fn process_withdraw_nft<'a>(
     }
 
     withdraw.is_initialized = true;
-    withdraw.token_type = TokenType::NFT;
+    withdraw.token_type = NFT;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = 1;
     withdraw.network = content.network_from;

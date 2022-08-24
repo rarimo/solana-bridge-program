@@ -1,83 +1,74 @@
 # Solana bridge contract
 
 ## Fundamentals
-Solana bridge contract will manage all crosschain transfers for Solana Metaplex NFT. It will work in couple with a backend Solana proxy service that will create and sign withdrawal transactions and also store deposit/withdrawal history.
+Solana decentralized bridge contract will manage deposits and withdrawals for Native (Sol), FT and NFT. 
+All withdrawal operations are protected by ECDSA secp256k1 threshold (t-n) signature. 
+This signature is produced by core multi-sig services depending on validated core state.   
 
 ## Requirements
-- Withdraw operations should be accessible only with the admin signature
-- Bridge contract should be responsible for preventing ‘double-withdrawal’ attack
-- There should be an option to change contract admin that should sign withdrawal operations
+- Admin account should store ECDSA t-n public key
+- Changing of stored admin's key requires t-n signature of new key produced by old key
+- Withdrawal operations should accept Merkle node content, Merkle path and admin t-n signature for Merkle root.
+- Withdrawal operations should perform check for Merkle path, signature and other sensitive stuff
 
-Let’s clarify that the contract is not responsible for managing what mint account we will use in withdrawal operation. Cause of Solana contracts peculiarities we cannot manage token mint accounts and collect information about its deposits, so the backend service should manage all mint and metadata creation/selection.
+Note that in smart contract we are using 64-byte public key format.
 
-## State:
-- BridgeAdmin:
-    - admin public key
-  
-- DepositData
-    - network
-    - receiver address
+## State definitions
+Here we define the token type on contract level - for tracking in state what kind of operation has been called.
+```rust
+pub enum TokenType {
+    Native,
+    NFT,
+    FT,
+}
+```
 
-- WithdrawData
-    - network
-    - sender address
+The BridgeAdmin account stores ECDSA t-n public key 
+```rust
+pub struct BridgeAdmin {
+    pub public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    pub is_initialized: bool,
+}
+```
 
-## Methods:
-Here we will use the next terms:
+Deposit account stores information about successfully processed deposit operation
+```rust
+pub struct Deposit {
+    pub token_type: TokenType,
+    // Can be None for native token
+    pub mint: Option<Pubkey>,
+    pub amount: u64,
+    // Network to (target)
+    pub network: String,
+    // Receiver address on target network
+    pub receiver_address: String,
+    pub is_initialized: bool,
+}
+```
 
-- __bridge token account__ - the token associated account of bridge admin account. Using the Solana PDA mechanics we can secure the account from all operations except of calls from our contract.
+Withdraw account stores information about successfully processed withdrawal operation
+```rust
+pub struct Withdraw {
+    pub token_type: TokenType,
+   // Can be None for native token
+    pub mint: Option<Pubkey>,
+    pub amount: u64,
+    // Network from
+    pub network: String,
+    // Receiver address on Solana
+    pub receiver_address: Pubkey,
+    pub is_initialized: bool,
+}
+```
 
-- __bridge admin account__ - account that represents contract admin and stores admin public key. Its account address can be derived from PDA of seed and program id.
+## Instructions
 
-- __seed__ - seed is the 32-byte array that derives the bridge admin account. The backend service is responsible for seed storing and correctness (cause PDA should not lie on ed25519 curve some seeds can produce wrong addresses).
+For quick instructions overview take a look on [instructions.rs](./src/instruction.rs) 
 
-- __nonce__ - nonce is the 32-byte array that derives deposit/withdrawal data stored on-chain. It helps us to create unique public keys, but because of Solana peculiarities we should calculate the bump seed for the key and then re-create public key using it.
-
-More documentation about PDA, bump seed, etc. you can find [here](https://docs.rs/solana-program/latest/solana_program/pubkey/struct.Pubkey.html#method.find_program_address)
-
-1. initAdmin
-
-    __Logic__: 	Here we will initialize account data with admin’s public key
-
-
-2. transferOwnership
-
-    __Arguments:__ bridge admin account, admin account, new admin account
-
-    __Logic:__ 	Here we will change admin in the bridge admin account data
-
-3. depositMetaplexNFT
-
-    __[Arguments](./src/instruction.rs):__
-    - bridge admin account,
-    - token mint account,
-    - owner token account,
-    - bridge token account,
-    - owner account,
-    - deposit data account,
-    - data(network, receiver address, seed, nonce)
-
-    __Logic:__ Here we will transfer NFT to the program’s token account (owned by bridge) and store data about it.
-
-
-4. withdrawMetaplexNFT
-
-    __[Arguments](./src/instruction.rs):__
-    - bridge admin account,
-    - token mint account,
-    - owner token account,
-    - bridge token account,
-    - withdraw data account,  
-    - admin account,
-    - data(deposit tx id, network from, sender address, seeds)
-
-    __Logic:__ Here we will check that:
-    1. admin account is signed and bridge admin is equal to the signed admin
-    2. program token account is owned by bridge
-    3. withdrawal account is not initialized.
-
-    After all checks, we will transfer token to the user’s account, and initialize withdrawal account information. Nonce for withdrawal account public key will be derived as sha256 hash from tx string.
-
+Here we have deposits and withdrawal instructions split onto three groups: native, ft (fungible token) and nft (non-fungible token).
+Note that deposit instructions accepts all tokens, and if you try to send token that are not supported by our core system you will lose all of them.
+Also withdrawal operations does not take any care of matching tokens between chains. 
+Valid Merkle path + admins signature means that data is also valid and signed by core system.
 
 ## Build
 
