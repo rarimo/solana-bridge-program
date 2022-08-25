@@ -8,6 +8,7 @@ use solana_program::{
 use mpl_token_metadata::state::DataV2;
 use crate::util;
 use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH};
+use spl_associated_token_account::get_associated_token_address;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -147,12 +148,11 @@ pub enum BridgeInstruction {
     ///
     /// Accounts expected by this instruction:
     ///
-    ///   0. `[]` The BridgeAdmin account
+    ///   0. `[writable]` The BridgeAdmin account
     ///   1. `[writable]` The new Deposit account
     ///   2. `[writable,signer]` The owner account
-    ///   3. `[]` Token program id
-    ///   4. `[]` System program
-    ///   5. `[]` Rent sysvar
+    ///   3. `[]` System program
+    ///   4. `[]` Rent sysvar
     DepositNative(DepositNativeArgs),
 
     /// Make FT deposit on bridge.
@@ -191,12 +191,11 @@ pub enum BridgeInstruction {
     ///
     /// Accounts expected by this instruction:
     ///
-    ///   0. `[]` The BridgeAdmin account
+    ///   0. `[writable]` The BridgeAdmin account
     ///   1. `[writable,signer]` The owner account
     ///   2. `[writable]` The new Withdraw account
-    ///   3. `[]` Token program id
-    ///   4. `[]` System program
-    ///   5. `[]` Rent sysvar
+    ///   3. `[]` System program
+    ///   4. `[]` Rent sysvar
     WithdrawNative(WithdrawArgs),
 
     /// Make FT withdraw from bridge.

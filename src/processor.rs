@@ -107,7 +107,6 @@ pub fn process_init_admin<'a>(
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-
     let bridge_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if bridge_key != *bridge_admin_info.key {
         return Err(BridgeError::WrongSeeds.into());
@@ -178,8 +177,6 @@ pub fn process_deposit_native<'a>(
     let bridge_admin_info = next_account_info(account_info_iter)?;
     let deposit_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
-
-    let token_program = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
@@ -198,15 +195,11 @@ pub fn process_deposit_native<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
-    //TODO: check for working
-    let transfer_tokens_instruction = transfer(
-        token_program.key,
+    let transfer_tokens_instruction = solana_program::system_instruction::transfer(
         owner_info.key,
         bridge_admin_info.key,
-        owner_info.key,
-        &[],
         amount,
-    )?;
+    );
 
     msg!("Transferring token");
     invoke(
@@ -214,7 +207,6 @@ pub fn process_deposit_native<'a>(
         &[
             owner_info.clone(),
             bridge_admin_info.clone(),
-            owner_info.clone(),
         ],
     )?;
 
@@ -244,7 +236,6 @@ pub fn process_deposit_native<'a>(
     msg!("Deposit account created");
     Ok(())
 }
-
 
 pub fn process_deposit_ft<'a>(
     program_id: &'a Pubkey,
@@ -278,14 +269,14 @@ pub fn process_deposit_ft<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    if *bridge_associated_info.key !=
-        get_associated_token_address(&bridge_admin_key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
-    }
-
     let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if deposit_key != *deposit_info.key {
         return Err(BridgeError::WrongNonce.into());
+    }
+
+    if *bridge_associated_info.key !=
+        get_associated_token_address(&bridge_admin_key, mint_info.key) {
+        return Err(BridgeError::WrongTokenAccount.into());
     }
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
@@ -302,7 +293,7 @@ pub fn process_deposit_ft<'a>(
     }
 
     let transfer_tokens_instruction = transfer(
-        token_program.key,
+        &spl_token::id(),
         owner_associated_info.key,
         bridge_associated_info.key,
         owner_info.key,
@@ -402,7 +393,7 @@ pub fn process_deposit_nft<'a>(
     }
 
     let transfer_tokens_instruction = transfer(
-        token_program.key,
+        &spl_token::id(),
         owner_associated_info.key,
         bridge_associated_info.key,
         owner_info.key,
@@ -462,7 +453,6 @@ pub fn process_withdraw_native<'a>(
     let owner_info = next_account_info(account_info_iter)?;
     let withdraw_info = next_account_info(account_info_iter)?;
 
-    let token_program = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
@@ -491,14 +481,11 @@ pub fn process_withdraw_native<'a>(
     verify_merkle_path(&path, root)?;
     verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
 
-    let transfer_tokens_instruction = transfer(
-        token_program.key,
+    let transfer_tokens_instruction = solana_program::system_instruction::transfer(
         bridge_admin_info.key,
         owner_info.key,
-        bridge_admin_info.key,
-        &[],
         content.amount,
-    )?;
+    );
 
     msg!("Transferring token");
     invoke_signed(
@@ -506,7 +493,6 @@ pub fn process_withdraw_native<'a>(
         &[
             bridge_admin_info.clone(),
             owner_info.clone(),
-            bridge_admin_info.clone(),
         ],
         &[&[&seeds]],
     )?;
@@ -605,7 +591,7 @@ pub fn process_withdraw_ft<'a>(
     }
 
     let transfer_tokens_instruction = transfer(
-        token_program.key,
+        &spl_token::id(),
         bridge_token_info.key,
         owner_associated_info.key,
         &bridge_admin_key,
@@ -718,7 +704,7 @@ pub fn process_withdraw_nft<'a>(
     }
 
     let transfer_tokens_instruction = transfer(
-        token_program.key,
+        &spl_token::id(),
         bridge_token_info.key,
         owner_associated_info.key,
         &bridge_admin_key,
@@ -782,7 +768,7 @@ pub fn process_mint_ft<'a>(
     let payer_info = next_account_info(account_info_iter)?;
 
     let token_program = next_account_info(account_info_iter)?;
-    let metadata_program = next_account_info(account_info_iter)?;
+    let _metadata_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
 
@@ -808,13 +794,12 @@ pub fn process_mint_ft<'a>(
         rent_info,
         system_program,
         Mint::LEN,
-        token_program.key,
+        &spl_token::id(),
         &[],
     )?;
 
     msg!("Initializing mint account");
     call_init_mint(
-        token_program.key,
         mint_info,
         bridge_admin_info,
         rent_info,
@@ -834,7 +819,6 @@ pub fn process_mint_ft<'a>(
 
     msg!("Minting token to bridge admin");
     call_mint_to(
-        token_program.key,
         mint_info,
         bridge_token_info,
         bridge_admin_info,
@@ -844,7 +828,6 @@ pub fn process_mint_ft<'a>(
 
     msg!("Creating metadata account");
     call_create_metadata(
-        *metadata_program.key,
         metadata_info,
         mint_info,
         bridge_admin_info,
@@ -904,13 +887,12 @@ pub fn process_mint_nft<'a>(
         rent_info,
         system_program,
         Mint::LEN,
-        token_program.key,
+        &spl_token::id(),
         &[],
     )?;
 
     msg!("Initializing mint account");
     call_init_mint(
-        token_program.key,
         mint_info,
         bridge_admin_info,
         rent_info,
@@ -930,7 +912,6 @@ pub fn process_mint_nft<'a>(
 
     msg!("Minting token to bridge admin");
     call_mint_to(
-        token_program.key,
         mint_info,
         bridge_token_info,
         bridge_admin_info,
@@ -940,7 +921,6 @@ pub fn process_mint_nft<'a>(
 
     msg!("Creating metadata account");
     call_create_metadata(
-        *metadata_program.key,
         metadata_info,
         mint_info,
         bridge_admin_info,
@@ -954,7 +934,6 @@ pub fn process_mint_nft<'a>(
 
     msg!("Creating master edition account");
     call_create_master_edition(
-        *metadata_program.key,
         master_info,
         mint_info,
         bridge_admin_info,
@@ -973,7 +952,7 @@ pub fn process_mint_nft<'a>(
         let collection_master_info = next_account_info(account_info_iter)?;
 
         let verify_collection_instruction = verify_collection(
-            *metadata_program.key,
+            mpl_token_metadata::id(),
             *metadata_info.key,
             bridge_admin_key,
             *payer_info.key,
@@ -1061,7 +1040,6 @@ fn call_create_account<'a>(
 }
 
 fn call_mint_to<'a>(
-    program_id: &Pubkey,
     mint: &AccountInfo<'a>,
     account: &AccountInfo<'a>,
     owner: &AccountInfo<'a>,
@@ -1069,7 +1047,7 @@ fn call_mint_to<'a>(
     amount: u64,
 ) -> ProgramResult {
     let mint_to_instruction = mint_to(
-        program_id,
+        &spl_token::id(),
         mint.key,
         account.key,
         owner.key,
@@ -1089,14 +1067,13 @@ fn call_mint_to<'a>(
 }
 
 fn call_init_mint<'a>(
-    program_id: &Pubkey,
     mint: &AccountInfo<'a>,
     mint_authority: &AccountInfo<'a>,
     rent: &AccountInfo<'a>,
     decimals: u8,
 ) -> ProgramResult {
     let init_mint_instruction = initialize_mint(
-        program_id,
+        &spl_token::id(),
         mint.key,
         mint_authority.key,
         None,
@@ -1113,7 +1090,6 @@ fn call_init_mint<'a>(
 }
 
 fn call_create_master_edition<'a>(
-    program_id: Pubkey,
     edition: &AccountInfo<'a>,
     mint: &AccountInfo<'a>,
     update_authority: &AccountInfo<'a>,
@@ -1126,7 +1102,7 @@ fn call_create_master_edition<'a>(
     seeds: [u8; 32],
 ) -> ProgramResult {
     let create_master_edition_instruction = create_master_edition_v3(
-        program_id,
+        mpl_token_metadata::id(),
         *edition.key,
         *mint.key,
         *update_authority.key,
@@ -1154,7 +1130,6 @@ fn call_create_master_edition<'a>(
 }
 
 fn call_create_metadata<'a>(
-    program_id: Pubkey,
     metadata_account: &AccountInfo<'a>,
     mint: &AccountInfo<'a>,
     mint_authority: &AccountInfo<'a>,
@@ -1166,7 +1141,7 @@ fn call_create_metadata<'a>(
     seeds: [u8; 32],
 ) -> ProgramResult {
     let create_metadata_instruction = create_metadata_accounts_v2(
-        program_id,
+        mpl_token_metadata::id(),
         *metadata_account.key,
         *mint.key,
         *mint_authority.key,
