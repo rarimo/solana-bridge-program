@@ -53,12 +53,25 @@ pub enum BridgeError {
     #[error("Wrong content hash")]
     WrongContentHash,
     /// 15 Wrong signature key
-    #[error("Wrong signature key")]
+    #[error("Wrong signature public key")]
     WrongSignature,
-    /// 16 Wrong token type in the content
+    /// 16 Invalid signature
+    #[error("Invalid signature")]
+    InvalidSignature,
+    /// 17 Wrong message for signing
+    #[error("Invalid sign message")]
+    InvalidMessage,
+    /// 18 Invalid key
+    #[error("Invalid key")]
+    InvalidKey,
+    /// 19 Wrong token type in the content
     #[error("Wrong token type")]
     WrongTokenType,
+    /// 20 Wrong balance
+    #[error("Wrong balance")]
+    WrongBalance,
 }
+
 
 impl From<BridgeError> for ProgramError {
     fn from(e: BridgeError) -> Self {

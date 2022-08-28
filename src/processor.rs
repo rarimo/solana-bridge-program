@@ -44,7 +44,7 @@ pub fn process_instruction<'a>(
         }
         BridgeInstruction::TransferOwnership(args) => {
             msg!("Instruction: Transfer Bridge Admin ownership");
-            process_transfer_ownership(program_id, accounts, args.seeds, args.new_public_key, args.signature)
+            process_transfer_ownership(program_id, accounts, args.seeds, args.new_public_key, args.signature, args.recovery_id)
         }
         BridgeInstruction::DepositNative(args) => {
             msg!("Instruction: Deposit SOL");
@@ -65,19 +65,19 @@ pub fn process_instruction<'a>(
         BridgeInstruction::WithdrawNative(args) => {
             msg!("Instruction: Withdraw SOL");
             args.validate()?;
-            process_withdraw_native(program_id, accounts, args.seeds, args.signature, args.path, args.root, args.content)
+            process_withdraw_native(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.root, args.content)
         }
 
         BridgeInstruction::WithdrawFT(args) => {
             msg!("Instruction: Withdraw FT");
             args.validate()?;
-            process_withdraw_ft(program_id, accounts, args.seeds, args.signature, args.path, args.root, args.content)
+            process_withdraw_ft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.root, args.content)
         }
 
         BridgeInstruction::WithdrawNFT(args) => {
             msg!("Instruction: Withdraw NFT");
             args.validate()?;
-            process_withdraw_nft(program_id, accounts, args.seeds, args.signature, args.path, args.root, args.content)
+            process_withdraw_nft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.root, args.content)
         }
 
         BridgeInstruction::MintFT(args) => {
@@ -122,7 +122,6 @@ pub fn process_init_admin<'a>(
         &[&seeds],
     )?;
 
-
     let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if bridge_admin.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
@@ -140,6 +139,7 @@ pub fn process_transfer_ownership<'a>(
     seeds: [u8; 32],
     new_public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    recovery_id: u8,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let bridge_admin_info = next_account_info(account_info_iter)?;
@@ -155,7 +155,7 @@ pub fn process_transfer_ownership<'a>(
     }
 
 
-    verify_ecdsa_signature(new_public_key.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
+    verify_ecdsa_signature(new_public_key.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     bridge_admin.public_key = new_public_key;
     bridge_admin.serialize(&mut *bridge_admin_info.data.borrow_mut())?;
@@ -443,6 +443,7 @@ pub fn process_withdraw_native<'a>(
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    recovery_id: u8,
     path: Vec<[u8; 32]>,
     root: [u8; 32],
     content: SignedContent,
@@ -477,25 +478,19 @@ pub fn process_withdraw_native<'a>(
         return Err(BridgeError::WrongTokenType.into());
     }
 
-    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
+
+    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
     verify_merkle_path(&path, root)?;
     verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
 
-    let transfer_tokens_instruction = solana_program::system_instruction::transfer(
-        bridge_admin_info.key,
-        owner_info.key,
-        content.amount,
-    );
+    // TODO check rent
+    if **bridge_admin_info.try_borrow_lamports()? < content.amount {
+        return Err(BridgeError::WrongBalance.into());
+    }
 
     msg!("Transferring token");
-    invoke_signed(
-        &transfer_tokens_instruction,
-        &[
-            bridge_admin_info.clone(),
-            owner_info.clone(),
-        ],
-        &[&[&seeds]],
-    )?;
+    **bridge_admin_info.try_borrow_mut_lamports()? -= content.amount;
+    **owner_info.try_borrow_mut_lamports()? += content.amount;
 
     msg!("Creating withdraw account");
     call_create_account(
@@ -507,6 +502,8 @@ pub fn process_withdraw_native<'a>(
         program_id,
         &[&nonce, &[bump_seed]],
     )?;
+
+    msg!("Initializing withdraw account");
 
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
@@ -529,6 +526,7 @@ pub fn process_withdraw_ft<'a>(
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    recovery_id: u8,
     path: Vec<[u8; 32]>,
     root: [u8; 32],
     content: SignedContent,
@@ -567,7 +565,7 @@ pub fn process_withdraw_ft<'a>(
         return Err(BridgeError::WrongTokenType.into());
     }
 
-    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
+    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
     verify_merkle_path(&path, root)?;
     verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
 
@@ -642,6 +640,7 @@ pub fn process_withdraw_nft<'a>(
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    recovery_id: u8,
     path: Vec<[u8; 32]>,
     root: [u8; 32],
     content: SignedContent,
@@ -680,7 +679,7 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::WrongTokenType.into());
     }
 
-    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), bridge_admin.public_key.as_slice())?;
+    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
     verify_merkle_path(&path, root)?;
     verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
 

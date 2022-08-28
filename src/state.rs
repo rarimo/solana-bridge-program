@@ -10,8 +10,8 @@ pub const MAX_TOKEN_ID_SIZE: usize = 100;
 pub const MAX_TX_SIZE: usize = 100;
 
 pub const BRIDGE_ADMIN_SIZE: usize = SECP256K1_PUBLIC_KEY_LENGTH + 1;
-pub const DEPOSIT_SIZE: usize = size_of::<Deposit>() + (32 as usize)  + (8 as usize) + MAX_NETWORKS_SIZE + MAX_ADDRESS_SIZE + 1;
-pub const WITHDRAW_SIZE: usize = size_of::<Deposit>() + (32 as usize) + (8 as usize) + MAX_NETWORKS_SIZE + MAX_ADDRESS_SIZE + 1;
+pub const DEPOSIT_SIZE: usize = size_of::<TokenType>() + (32 as usize)  + (8 as usize) + MAX_NETWORKS_SIZE + MAX_ADDRESS_SIZE + 1;
+pub const WITHDRAW_SIZE: usize = size_of::<TokenType>() + (32 as usize) + (8 as usize) + MAX_NETWORKS_SIZE + MAX_ADDRESS_SIZE + 1;
 
 
 #[repr(C)]

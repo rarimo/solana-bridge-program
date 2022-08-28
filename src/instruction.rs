@@ -26,6 +26,7 @@ pub struct TransferOwnershipArgs {
     pub new_public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     // Signature of new_public_key by old public key
     pub signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    pub recovery_id: u8,
     // Admin account seeds
     pub seeds: [u8; 32],
 }
@@ -102,6 +103,7 @@ pub struct SignedContent {
 pub struct WithdrawArgs {
     pub content: SignedContent,
     pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    pub recovery_id: u8,
     pub path: Vec<[u8; 32]>,
     pub root: [u8; 32],
     pub seeds: [u8; 32],
@@ -266,7 +268,7 @@ pub enum BridgeInstruction {
     ///   13. `[]` The collection master edition account
     MintNFT(MintNFTArgs),
 }
-
+/*
 pub fn initialize_admin(
     program_id: Pubkey,
     bridge_admin: Pubkey,
@@ -519,4 +521,4 @@ pub fn withdraw_nft(
             seeds,
         }).try_to_vec().unwrap(),
     }
-}
+}*/

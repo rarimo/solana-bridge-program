@@ -5,17 +5,21 @@ use solana_program::{
 };
 use crate::instruction::SignedContent;
 use crate::merkle_node::ContentNode;
-use solana_program::secp256k1_recover::{secp256k1_recover, Secp256k1Pubkey};
+use solana_program::secp256k1_recover::{secp256k1_recover, Secp256k1Pubkey, SECP256K1_PUBLIC_KEY_LENGTH};
 
-pub(crate) fn verify_ecdsa_signature(message: &[u8], sig: &[u8], target_key: &[u8]) -> ProgramResult {
-    let recovered_key = secp256k1_recover(hash::hash(message).as_ref(), 0, sig);
+pub(crate) fn verify_ecdsa_signature(message: &[u8], sig: &[u8], reid: u8, target_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH]) -> ProgramResult {
+    let recovered_key = secp256k1_recover(message, reid, sig);
     if recovered_key.is_err() {
-        return ProgramResult::Err(BridgeError::WrongSignature.into());
+        return ProgramResult::Err(BridgeError::InvalidSignature.into());
     }
 
-    let key = Secp256k1Pubkey::new(target_key);
+    let key = recovered_key.unwrap().0;
 
-    if recovered_key.unwrap().ne(&key) {
+    msg!(bs58::encode(sig).into_string().as_str());
+    msg!(bs58::encode(key.as_slice()).into_string().as_str());
+    msg!(bs58::encode(target_key.as_slice()).into_string().as_str());
+
+    if key != target_key {
         return ProgramResult::Err(BridgeError::WrongSignature.into());
     }
 
