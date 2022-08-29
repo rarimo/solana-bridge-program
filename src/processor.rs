@@ -29,6 +29,7 @@ use crate::{
     util::{verify_ecdsa_signature, verify_merkle_path, verify_signed_content},
 };
 use crate::state::TokenType::{NFT, FT, Native};
+use mpl_token_metadata::state::TokenStandard;
 
 
 pub fn process_instruction<'a>(
@@ -478,7 +479,6 @@ pub fn process_withdraw_native<'a>(
         return Err(BridgeError::WrongTokenType.into());
     }
 
-
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
     verify_merkle_path(&path, root)?;
     verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
@@ -567,11 +567,15 @@ pub fn process_withdraw_ft<'a>(
 
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
     verify_merkle_path(&path, root)?;
-    verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
-
+    verify_signed_content(path[0], &content, mint_info.key.to_string(), String::new(), owner_info.key.to_string())?;
 
     if *bridge_token_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
+        return Err(BridgeError::WrongTokenAccount.into());
+    }
+
+    if *owner_associated_info.key !=
+        get_associated_token_address(&owner_info.key, mint_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
@@ -619,6 +623,8 @@ pub fn process_withdraw_ft<'a>(
         &[&nonce, &[bump_seed]],
     )?;
 
+    msg!("Initializing withdraw account");
+
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
         return Err(BridgeError::AlreadyInUse.into());
@@ -649,6 +655,7 @@ pub fn process_withdraw_nft<'a>(
 
     let bridge_admin_info = next_account_info(account_info_iter)?;
     let mint_info = next_account_info(account_info_iter)?;
+    let metadata_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
     let owner_associated_info = next_account_info(account_info_iter)?;
     let bridge_token_info = next_account_info(account_info_iter)?;
@@ -679,13 +686,34 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::WrongTokenType.into());
     }
 
+    if *metadata_info.key != mpl_token_metadata::pda::find_metadata_account(mint_info.key).0 {
+        return Err(BridgeError::WrongMetadataAccount.into());
+    }
+
+    if metadata_info.data.borrow().as_ref().len() == 0 {
+        return Err(BridgeError::UninitializedMetadata.into());
+    }
+
+    let collection = {
+        let metadata = mpl_token_metadata::state::Metadata::from_account_info(metadata_info)?;
+        if metadata.collection.is_some() {
+            metadata.collection.unwrap().key.to_string()
+        } else {
+            String::new()
+        }
+    };
+
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
     verify_merkle_path(&path, root)?;
-    verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
-
+    verify_signed_content(path[0], &content, mint_info.key.to_string(), collection, owner_info.key.to_string())?;
 
     if *bridge_token_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
+        return Err(BridgeError::WrongTokenAccount.into());
+    }
+
+    if *owner_associated_info.key !=
+        get_associated_token_address(&owner_info.key, mint_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
@@ -732,6 +760,8 @@ pub fn process_withdraw_nft<'a>(
         program_id,
         &[&nonce, &[bump_seed]],
     )?;
+
+    msg!("Initializing withdraw account");
 
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {

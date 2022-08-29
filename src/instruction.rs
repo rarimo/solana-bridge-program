@@ -68,8 +68,8 @@ pub enum TokenType {
     ERC20,
     ERC721,
     ERC1155,
-    MetaplexNFT,
     MetaplexFT,
+    MetaplexNFT,
 }
 
 impl ToString for TokenType {
@@ -222,10 +222,11 @@ pub enum BridgeInstruction {
     ///
     ///   0. `[]` The BridgeAdmin account
     ///   1. `[]` The token mint account
-    ///   2. `[writable,signer]` The owner account
-    ///   3. `[writable]` The owner token associated account
-    ///   4. `[writable]` The bridge token account
-    ///   5. `[writable]` The new Withdraw account
+    ///   2. `[]` The token metadata account
+    ///   3. `[writable,signer]` The owner account
+    ///   4. `[writable]` The owner token associated account
+    ///   5. `[writable]` The bridge token account
+    ///   6. `[writable]` The new Withdraw account
     ///   7. `[]` Token program id
     ///   8. `[]` System program
     ///   9. `[]` Rent sysvar

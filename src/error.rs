@@ -70,6 +70,12 @@ pub enum BridgeError {
     /// 20 Wrong balance
     #[error("Wrong balance")]
     WrongBalance,
+    /// 21 Uninitialized metadata
+    #[error("Uninitialized metadata")]
+    UninitializedMetadata,
+    /// 22 Wrong token standard
+    #[error("Wrong token standard")]
+    WrongTokenStandard,
 }
 
 

@@ -13,13 +13,7 @@ pub(crate) fn verify_ecdsa_signature(message: &[u8], sig: &[u8], reid: u8, targe
         return ProgramResult::Err(BridgeError::InvalidSignature.into());
     }
 
-    let key = recovered_key.unwrap().0;
-
-    msg!(bs58::encode(sig).into_string().as_str());
-    msg!(bs58::encode(key.as_slice()).into_string().as_str());
-    msg!(bs58::encode(target_key.as_slice()).into_string().as_str());
-
-    if key != target_key {
+    if recovered_key.unwrap().0 != target_key {
         return ProgramResult::Err(BridgeError::WrongSignature.into());
     }
 
@@ -31,13 +25,17 @@ pub(crate) fn verify_merkle_path(path: &Vec<[u8; 32]>, root: [u8; 32]) -> Progra
         return ProgramResult::Err(BridgeError::WrongMerklePath.into());
     }
 
-    let mut hash = path[0];
+    let hash = {
+        let mut hash = path[0];
 
-    for i in 1..path.len() {
-        let mut sum = Vec::from(hash);
-        sum.append(&mut Vec::from(path[i]));
-        hash = hash::hash(sum.as_slice()).to_bytes();
-    }
+        for i in 1..path.len() {
+            let mut sum = Vec::from(hash);
+            sum.append(&mut Vec::from(path[i]));
+            hash = hash::hash(sum.as_slice()).to_bytes();
+        }
+        hash
+    };
+
 
     if hash != root {
         return ProgramResult::Err(BridgeError::WrongMerkleRoot.into());
@@ -49,6 +47,8 @@ pub(crate) fn verify_merkle_path(path: &Vec<[u8; 32]>, root: [u8; 32]) -> Progra
 pub(crate) fn verify_signed_content(target_hash: [u8; 32], content: &SignedContent, mint: String, collection: String, receiver: String) -> ProgramResult {
     let hash = hash::hash(ContentNode::new(content, mint, collection, receiver).to_string().as_bytes());
     if hash.to_bytes() != target_hash {
+        msg!(bs58::encode(hash.to_bytes().as_slice()).into_string().as_str());
+        msg!(bs58::encode(target_hash.as_slice()).into_string().as_str());
         return ProgramResult::Err(BridgeError::WrongContentHash.into());
     }
     Ok(())
