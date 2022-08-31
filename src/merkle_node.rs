@@ -1,59 +1,54 @@
-use crate::instruction::{TokenType, SignedContent};
 use solana_program::pubkey::Pubkey;
+use std::hash::Hash;
 
 const SOLANA_NETWORK: &str = "Solana";
 
 pub struct ContentNode {
-    pub tx_hash: String,
-    // Empty line if was native
-    pub address_from: String,
-    // Empty line if was native or fungible
-    pub token_id_from: String,
-
+    // Hash of tx | event_id | network_from
+    pub origin_hash: [u8; 32],
     // Empty line if is native
-    pub address_to: String,
+    pub address_to: Option<[u8; 32]>,
     // Empty line if is native or fungible
-    pub token_id_to: String,
-
-    pub receiver: String,
-
-    pub network_from: String,
+    pub token_id_to: Option<[u8; 32]>,
+    pub receiver: [u8; 32],
     // Solana
     pub network_to: String,
     pub amount: u64,
-    pub token_type: TokenType,
+    pub program_id: [u8; 32],
 }
 
 impl ContentNode {
-    pub(crate) fn new(content: &SignedContent, mint: String, collection: String, receiver: String) -> Self {
+    pub(crate) fn new(origin_hash: [u8; 32], amount: u64, mint: Option<[u8; 32]>, collection: Option<[u8; 32]>, receiver: [u8; 32], program_id: [u8; 32]) -> Self {
         ContentNode {
-            tx_hash: content.tx_hash.clone(),
-            address_from: content.address_from.clone(),
-            token_id_from: content.token_id_from.clone(),
+            origin_hash,
             address_to: collection,
             token_id_to: mint,
             receiver,
-            network_from: content.network_from.clone(),
             network_to: String::from(SOLANA_NETWORK),
-            amount: content.amount,
-            token_type: content.token_type.clone(),
+            amount,
+            program_id,
         }
     }
 }
 
-impl ToString for ContentNode {
-    fn to_string(&self) -> String {
-        let mut res = String::new();
-        res.push_str(self.tx_hash.as_str());
-        res.push_str(self.address_from.as_str());
-        res.push_str(self.token_id_from.as_str());
-        res.push_str(self.address_to.as_str());
-        res.push_str(self.token_id_to.as_str());
-        res.push_str(self.receiver.as_str());
-        res.push_str(self.network_from.as_str());
-        res.push_str(self.network_to.as_str());
-        res.push_str(self.amount.to_string().as_str());
-        res.push_str(self.token_type.to_string().as_str());
-        res
+impl ContentNode {
+    pub fn hash(&self) -> solana_program::keccak::Hash {
+        let mut data = Vec::new();
+
+        if let Some(val) = self.address_to {
+            data.append(&mut Vec::from(val.as_slice()));
+        }
+
+        if let Some(val) = self.token_id_to {
+            data.append(&mut Vec::from(val.as_slice()));
+        }
+
+        data.append(&mut Vec::from(self.amount.to_be_bytes().as_slice()));
+        data.append(&mut Vec::from(self.receiver.as_slice()));
+        data.append(&mut Vec::from(self.origin_hash.as_slice()));
+        data.append(&mut Vec::from(self.network_to.as_bytes()));
+        data.append(&mut Vec::from(self.program_id.as_slice()));
+
+        solana_program::keccak::hash(data.as_slice())
     }
 }

@@ -11,26 +11,20 @@ use spl_token::{
 };
 use spl_associated_token_account::{get_associated_token_address, create_associated_token_account};
 use mpl_token_metadata::{
-    state::DataV2,
+    state::{DataV2, TokenStandard},
     instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
 };
 use borsh::{
     BorshDeserialize, BorshSerialize,
 };
 use crate::{
-    instruction::{
-        BridgeInstruction,
-        SignedContent,
-        TokenType,
-    },
-    state::{BridgeAdmin, BRIDGE_ADMIN_SIZE},
+    instruction::BridgeInstruction,
+    state::{BridgeAdmin, BRIDGE_ADMIN_SIZE, TokenType::{NFT, FT, Native}},
     error::BridgeError,
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
-    util::{verify_ecdsa_signature, verify_merkle_path, verify_signed_content},
+    util::{verify_ecdsa_signature, get_merkle_root},
+    merkle_node::ContentNode,
 };
-use crate::state::TokenType::{NFT, FT, Native};
-use mpl_token_metadata::state::TokenStandard;
-
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -66,19 +60,19 @@ pub fn process_instruction<'a>(
         BridgeInstruction::WithdrawNative(args) => {
             msg!("Instruction: Withdraw SOL");
             args.validate()?;
-            process_withdraw_native(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.root, args.content)
+            process_withdraw_native(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin_hash, args.amount)
         }
 
         BridgeInstruction::WithdrawFT(args) => {
             msg!("Instruction: Withdraw FT");
             args.validate()?;
-            process_withdraw_ft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.root, args.content)
+            process_withdraw_ft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin_hash, args.amount)
         }
 
         BridgeInstruction::WithdrawNFT(args) => {
             msg!("Instruction: Withdraw NFT");
             args.validate()?;
-            process_withdraw_nft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.root, args.content)
+            process_withdraw_nft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin_hash)
         }
 
         BridgeInstruction::MintFT(args) => {
@@ -446,8 +440,8 @@ pub fn process_withdraw_native<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    root: [u8; 32],
-    content: SignedContent,
+    origin_hash: [u8; 32],
+    amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -468,30 +462,21 @@ pub fn process_withdraw_native<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = hash::hash(content.tx_hash.as_bytes()).to_bytes();
-
+    let nonce = origin_hash.as_slice();
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
-    if content.token_type.ne(&TokenType::Native) {
-        return Err(BridgeError::WrongTokenType.into());
-    }
-
+    let root = get_merkle_root(ContentNode::new(origin_hash, amount, None, None, owner_info.key.to_bytes(), program_id.to_bytes()), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
-    verify_merkle_path(&path, root)?;
-    verify_signed_content(path[0], &content, String::new(), String::new(), owner_info.key.to_string())?;
 
     // TODO check rent
-    if **bridge_admin_info.try_borrow_lamports()? < content.amount {
+    if **bridge_admin_info.try_borrow_lamports()? < amount {
         return Err(BridgeError::WrongBalance.into());
     }
 
-    msg!("Transferring token");
-    **bridge_admin_info.try_borrow_mut_lamports()? -= content.amount;
-    **owner_info.try_borrow_mut_lamports()? += content.amount;
-
+    // Need to do that before transferring SOls
     msg!("Creating withdraw account");
     call_create_account(
         owner_info,
@@ -503,6 +488,10 @@ pub fn process_withdraw_native<'a>(
         &[&nonce, &[bump_seed]],
     )?;
 
+    msg!("Transferring token");
+    **bridge_admin_info.try_borrow_mut_lamports()? -= amount;
+    **owner_info.try_borrow_mut_lamports()? += amount;
+
     msg!("Initializing withdraw account");
 
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_info.data.borrow_mut().as_ref())?;
@@ -512,9 +501,9 @@ pub fn process_withdraw_native<'a>(
 
     withdraw.is_initialized = true;
     withdraw.token_type = Native;
+    withdraw.origin_hash = origin_hash;
     withdraw.mint = Option::None;
-    withdraw.amount = content.amount;
-    withdraw.network = content.network_from;
+    withdraw.amount = amount;
     withdraw.receiver_address = *owner_info.key;
     withdraw.serialize(&mut *withdraw_info.data.borrow_mut())?;
     msg!("Withdraw account created");
@@ -528,8 +517,8 @@ pub fn process_withdraw_ft<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    root: [u8; 32],
-    content: SignedContent,
+    origin_hash: [u8; 32],
+    amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -554,20 +543,14 @@ pub fn process_withdraw_ft<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = hash::hash(content.tx_hash.as_bytes()).to_bytes();
-
+    let nonce = origin_hash.as_slice();
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
-    if content.token_type.ne(&TokenType::MetaplexFT) {
-        return Err(BridgeError::WrongTokenType.into());
-    }
-
+    let root = get_merkle_root(ContentNode::new(origin_hash, amount, Some(mint_info.key.to_bytes()), None, owner_info.key.to_bytes(), program_id.to_bytes()), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
-    verify_merkle_path(&path, root)?;
-    verify_signed_content(path[0], &content, mint_info.key.to_string(), String::new(), owner_info.key.to_string())?;
 
     if *bridge_token_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -598,7 +581,7 @@ pub fn process_withdraw_ft<'a>(
         owner_associated_info.key,
         &bridge_admin_key,
         &[],
-        content.amount,
+        amount,
     )?;
 
     msg!("Transferring token");
@@ -632,9 +615,9 @@ pub fn process_withdraw_ft<'a>(
 
     withdraw.is_initialized = true;
     withdraw.token_type = FT;
+    withdraw.origin_hash = origin_hash;
     withdraw.mint = Option::Some(mint_info.key.clone());
-    withdraw.amount = content.amount;
-    withdraw.network = content.network_from;
+    withdraw.amount = amount;
     withdraw.receiver_address = *owner_info.key;
     withdraw.serialize(&mut *withdraw_info.data.borrow_mut())?;
     msg!("Withdraw account created");
@@ -648,8 +631,7 @@ pub fn process_withdraw_nft<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    root: [u8; 32],
-    content: SignedContent,
+    origin_hash: [u8; 32],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -675,15 +657,10 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = hash::hash(content.tx_hash.as_bytes()).to_bytes();
-
+    let nonce = origin_hash.as_slice();
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
-    }
-
-    if content.token_type.ne(&TokenType::MetaplexNFT) {
-        return Err(BridgeError::WrongTokenType.into());
     }
 
     if *metadata_info.key != mpl_token_metadata::pda::find_metadata_account(mint_info.key).0 {
@@ -694,18 +671,17 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::UninitializedMetadata.into());
     }
 
-    let collection = {
-        let metadata = mpl_token_metadata::state::Metadata::from_account_info(metadata_info)?;
+    let mut collection: Option<[u8; 32]> = {
+        let metadata :mpl_token_metadata::state::Metadata =  BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
         if metadata.collection.is_some() {
-            metadata.collection.unwrap().key.to_string()
+            Some(metadata.collection.unwrap().key.to_bytes())
         } else {
-            String::new()
+            None
         }
     };
 
+    let root = get_merkle_root(ContentNode::new(origin_hash, 1, Some(mint_info.key.to_bytes()), collection, owner_info.key.to_bytes(), program_id.to_bytes()), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
-    verify_merkle_path(&path, root)?;
-    verify_signed_content(path[0], &content, mint_info.key.to_string(), collection, owner_info.key.to_string())?;
 
     if *bridge_token_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -770,9 +746,9 @@ pub fn process_withdraw_nft<'a>(
 
     withdraw.is_initialized = true;
     withdraw.token_type = NFT;
+    withdraw.origin_hash = origin_hash;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = 1;
-    withdraw.network = content.network_from;
     withdraw.receiver_address = *owner_info.key;
     withdraw.serialize(&mut *withdraw_info.data.borrow_mut())?;
     msg!("Withdraw account created");
@@ -889,7 +865,7 @@ pub fn process_mint_nft<'a>(
     let payer_info = next_account_info(account_info_iter)?;
 
     let token_program = next_account_info(account_info_iter)?;
-    let metadata_program = next_account_info(account_info_iter)?;
+    let _metadata_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let _associated_program = next_account_info(account_info_iter)?;

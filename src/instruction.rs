@@ -60,52 +60,17 @@ pub struct DepositNFTArgs {
     pub nonce: [u8; 32],
 }
 
-// Types defined on core
-#[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub enum TokenType {
-    Native,
-    ERC20,
-    ERC721,
-    ERC1155,
-    MetaplexFT,
-    MetaplexNFT,
-}
-
-impl ToString for TokenType {
-    fn to_string(&self) -> String {
-        match self {
-            TokenType::Native => String::from("0"),
-            TokenType::ERC20 => String::from("1"),
-            TokenType::ERC721 => String::from("2"),
-            TokenType::ERC1155 => String::from("3"),
-            TokenType::MetaplexFT => String::from("4"),
-            TokenType::MetaplexNFT => String::from("5"),
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub struct SignedContent {
-    pub tx_hash: String,
-    // Empty line if was native
-    pub address_from: String,
-    // Empty line if was native
-    pub token_id_from: String,
-    pub network_from: String,
-    pub amount: u64,
-    pub token_type: TokenType,
-}
-
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WithdrawArgs {
-    pub content: SignedContent,
+    // Hash of tx | event_id | network_from
+    pub origin_hash: [u8; 32],
+    pub amount: u64,
+    // Signature for the Merkle root
     pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     pub recovery_id: u8,
+    // Merkle path
     pub path: Vec<[u8; 32]>,
-    pub root: [u8; 32],
     pub seeds: [u8; 32],
 }
 
