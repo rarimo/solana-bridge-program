@@ -5,7 +5,7 @@ use std::mem::size_of;
 
 
 pub const MAX_NETWORKS_SIZE: usize = 20;
-pub const MAX_ADDRESS_SIZE: usize = 64;
+pub const MAX_ADDRESS_SIZE: usize = 100;
 pub const MAX_TOKEN_ID_SIZE: usize = 100;
 pub const MAX_TX_SIZE: usize = 100;
 

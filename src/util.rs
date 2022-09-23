@@ -22,10 +22,6 @@ pub(crate) fn verify_ecdsa_signature(hash: &[u8], sig: &[u8], reid: u8, target_k
 }
 
 pub(crate) fn get_merkle_root(content: ContentNode, path: &Vec<[u8; 32]>) -> Result<[u8; 32], ProgramError> {
-    if path.len() == 0 {
-        return Result::Err(BridgeError::WrongMerklePath.into());
-    }
-
     let mut hash = content.hash();
 
     for i in 0..path.len() {

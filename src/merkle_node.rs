@@ -43,7 +43,7 @@ impl ContentNode {
             data.append(&mut Vec::from(val.as_slice()));
         }
 
-        data.append(&mut Vec::from(self.amount.to_be_bytes().as_slice()));
+        data.append(&mut Vec::from(amount_bytes(self.amount)));
         data.append(&mut Vec::from(self.receiver.as_slice()));
         data.append(&mut Vec::from(self.origin_hash.as_slice()));
         data.append(&mut Vec::from(self.network_to.as_bytes()));
@@ -51,4 +51,15 @@ impl ContentNode {
 
         solana_program::keccak::hash(data.as_slice())
     }
+}
+
+fn amount_bytes(amount: u64) -> [u8; 32] {
+    let bytes = amount.to_be_bytes();
+    let mut result : [u8; 32] = [0; 32];
+
+    for i in 0..bytes.len() {
+        result[31 - i] = bytes[bytes.len() - 1 - i];
+    }
+
+    return result;
 }
