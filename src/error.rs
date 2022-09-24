@@ -43,7 +43,41 @@ pub enum BridgeError {
     /// 11 Wrong mint account key
     #[error("Wrong mint key")]
     WrongMint,
+    /// 12 Wrong Merkle path array
+    #[error("Wrong merkle path")]
+    WrongMerklePath,
+    /// 13 Wrong Merkle root
+    #[error("Wrong merkle root")]
+    WrongMerkleRoot,
+    /// 14 Wrong content hash
+    #[error("Wrong content hash")]
+    WrongContentHash,
+    /// 15 Wrong signature key
+    #[error("Wrong signature public key")]
+    WrongSignature,
+    /// 16 Invalid signature
+    #[error("Invalid signature")]
+    InvalidSignature,
+    /// 17 Wrong message for signing
+    #[error("Invalid sign message")]
+    InvalidMessage,
+    /// 18 Invalid key
+    #[error("Invalid key")]
+    InvalidKey,
+    /// 19 Wrong token type in the content
+    #[error("Wrong token type")]
+    WrongTokenType,
+    /// 20 Wrong balance
+    #[error("Wrong balance")]
+    WrongBalance,
+    /// 21 Uninitialized metadata
+    #[error("Uninitialized metadata")]
+    UninitializedMetadata,
+    /// 22 Wrong token standard
+    #[error("Wrong token standard")]
+    WrongTokenStandard,
 }
+
 
 impl From<BridgeError> for ProgramError {
     fn from(e: BridgeError) -> Self {
