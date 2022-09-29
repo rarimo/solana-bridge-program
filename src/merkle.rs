@@ -1,4 +1,7 @@
-use solana_program::pubkey::Pubkey;
+use solana_program::{
+    pubkey::Pubkey,
+    msg,
+};
 use std::hash::Hash;
 
 const SOLANA_NETWORK: &str = "Solana";
@@ -20,35 +23,35 @@ pub struct TransferOperation {
 
 impl TransferOperation {
     pub fn new_native_transfer(amount: u64) -> Self {
-        TransferOperation{
+        TransferOperation {
             address_to: None,
             token_id_to: None,
             amount,
             name: "".to_string(),
             symbol: "".to_string(),
-            uri: "".to_string()
+            uri: "".to_string(),
         }
     }
 
-    pub fn new_ft_transfer(mint: [u8; 32], amount: u64, name:String, symbol: String, uri: String) -> Self {
-        TransferOperation{
+    pub fn new_ft_transfer(mint: [u8; 32], amount: u64, name: String, symbol: String, uri: String) -> Self {
+        TransferOperation {
             address_to: Some(mint),
             token_id_to: None,
             amount,
             name,
             symbol,
-            uri
+            uri,
         }
     }
 
-    pub fn new_nft_transfer(mint: [u8; 32], collection: Option<[u8; 32]>, name:String, symbol: String, uri: String) -> Self {
+    pub fn new_nft_transfer(mint: [u8; 32], collection: Option<[u8; 32]>, name: String, symbol: String, uri: String) -> Self {
         TransferOperation {
             address_to: collection,
             token_id_to: Some(mint),
             amount: 1,
             name,
             symbol,
-            uri
+            uri,
         }
     }
 }

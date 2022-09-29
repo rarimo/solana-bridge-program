@@ -7,4 +7,4 @@ pub mod processor;
 pub mod error;
 mod util;
 mod instruction_validation;
-mod merkle_node;
+mod merkle;

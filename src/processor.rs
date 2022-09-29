@@ -23,9 +23,9 @@ use crate::{
     error::BridgeError,
     state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
     util::{verify_ecdsa_signature, get_merkle_root},
-    merkle_node::ContentNode,
+    merkle::ContentNode,
 };
-use crate::merkle_node::{TransferOperation, Operation};
+use crate::merkle::{TransferOperation, Operation};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -468,7 +468,15 @@ pub fn process_withdraw_native<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
-    let content = ContentNode::new(origin.to_vec(), owner_info.key.to_bytes(), program_id.to_bytes(), TransferOperation::new_native_transfer(amount).get_operation());
+
+    let content = ContentNode::new(
+        origin.to_vec(),
+        owner_info.key.to_bytes(),
+        program_id.to_bytes(),
+        TransferOperation::new_native_transfer(
+            amount,
+        ).get_operation(),
+    );
     let root = get_merkle_root(content, &path)?;
 
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
@@ -554,14 +562,26 @@ pub fn process_withdraw_ft<'a>(
         return Err(BridgeError::UninitializedMetadata.into());
     }
 
-    let metadata :mpl_token_metadata::state::Metadata =  BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
+    let metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
 
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
-    let content = ContentNode::new(origin.to_vec(), owner_info.key.to_bytes(), program_id.to_bytes(), TransferOperation::new_ft_transfer(mint_info.key.to_bytes(), amount, metadata.data.name, metadata.data.symbol, metadata.data.uri).get_operation());
+    let content = ContentNode::new(
+        origin.to_vec(),
+        owner_info.key.to_bytes(),
+        program_id.to_bytes(),
+        TransferOperation::new_ft_transfer(
+            mint_info.key.to_bytes(),
+            amount,
+            metadata.data.name.trim_matches(char::from(0)).to_string(),
+            metadata.data.symbol.trim_matches(char::from(0)).to_string(),
+            metadata.data.uri.trim_matches(char::from(0)).to_string(),
+        ).get_operation(),
+    );
+
     let root = get_merkle_root(content, &path)?;
 
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
@@ -684,7 +704,7 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::UninitializedMetadata.into());
     }
 
-    let metadata :mpl_token_metadata::state::Metadata =  BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
+    let metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
 
     let mut collection: Option<[u8; 32]> = {
         if metadata.collection.is_some() {
@@ -694,7 +714,19 @@ pub fn process_withdraw_nft<'a>(
         }
     };
 
-    let content = ContentNode::new(origin.to_vec(), owner_info.key.to_bytes(), program_id.to_bytes(), TransferOperation::new_nft_transfer(mint_info.key.to_bytes(), collection, metadata.data.name, metadata.data.symbol, metadata.data.uri).get_operation());
+    let content = ContentNode::new(
+        origin.to_vec(),
+        owner_info.key.to_bytes(),
+        program_id.to_bytes(),
+        TransferOperation::new_nft_transfer(
+            mint_info.key.to_bytes(),
+            collection,
+            metadata.data.name.trim_matches(char::from(0)).to_string(),
+            metadata.data.symbol.trim_matches(char::from(0)).to_string(),
+            metadata.data.uri.trim_matches(char::from(0)).to_string(),
+        ).get_operation(),
+    );
+
     let root = get_merkle_root(content, &path)?;
 
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
