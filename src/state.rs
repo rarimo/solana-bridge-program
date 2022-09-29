@@ -48,8 +48,8 @@ pub struct Withdraw {
     pub token_type: TokenType,
     pub mint: Option<Pubkey>,
     pub amount: u64,
-    // Hash of tx | event_id | network_from
-    pub origin_hash: [u8; 32],
+    // Default: hash of tx | event_id | network_from
+    pub origin: Vec<u8>,
     pub receiver_address: Pubkey,
     pub is_initialized: bool,
 }

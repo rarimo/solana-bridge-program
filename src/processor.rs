@@ -25,6 +25,7 @@ use crate::{
     util::{verify_ecdsa_signature, get_merkle_root},
     merkle_node::ContentNode,
 };
+use crate::merkle_node::{TransferOperation, Operation};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -60,19 +61,19 @@ pub fn process_instruction<'a>(
         BridgeInstruction::WithdrawNative(args) => {
             msg!("Instruction: Withdraw SOL");
             args.validate()?;
-            process_withdraw_native(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin_hash, args.amount)
+            process_withdraw_native(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin, args.amount)
         }
 
         BridgeInstruction::WithdrawFT(args) => {
             msg!("Instruction: Withdraw FT");
             args.validate()?;
-            process_withdraw_ft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin_hash, args.amount)
+            process_withdraw_ft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin, args.amount)
         }
 
         BridgeInstruction::WithdrawNFT(args) => {
             msg!("Instruction: Withdraw NFT");
             args.validate()?;
-            process_withdraw_nft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin_hash)
+            process_withdraw_nft(program_id, accounts, args.seeds, args.signature, args.recovery_id, args.path, args.origin)
         }
 
         BridgeInstruction::MintFT(args) => {
@@ -440,7 +441,7 @@ pub fn process_withdraw_native<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    origin_hash: [u8; 32],
+    origin: Vec<u8>,
     amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -462,13 +463,14 @@ pub fn process_withdraw_native<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = origin_hash.as_slice();
-    let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
+    let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
-    let root = get_merkle_root(ContentNode::new(origin_hash, amount, None, None, owner_info.key.to_bytes(), program_id.to_bytes()), &path)?;
+    let content = ContentNode::new(origin.to_vec(), owner_info.key.to_bytes(), program_id.to_bytes(), TransferOperation::new_native_transfer(amount).get_operation());
+    let root = get_merkle_root(content, &path)?;
+
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     // TODO check rent
@@ -485,7 +487,7 @@ pub fn process_withdraw_native<'a>(
         system_program,
         WITHDRAW_SIZE,
         program_id,
-        &[&nonce, &[bump_seed]],
+        &[origin.as_slice(), &[bump_seed]],
     )?;
 
     msg!("Transferring token");
@@ -501,7 +503,7 @@ pub fn process_withdraw_native<'a>(
 
     withdraw.is_initialized = true;
     withdraw.token_type = Native;
-    withdraw.origin_hash = origin_hash;
+    withdraw.origin = origin;
     withdraw.mint = Option::None;
     withdraw.amount = amount;
     withdraw.receiver_address = *owner_info.key;
@@ -517,13 +519,14 @@ pub fn process_withdraw_ft<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    origin_hash: [u8; 32],
+    origin: Vec<u8>,
     amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
     let bridge_admin_info = next_account_info(account_info_iter)?;
     let mint_info = next_account_info(account_info_iter)?;
+    let metadata_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
     let owner_associated_info = next_account_info(account_info_iter)?;
     let bridge_token_info = next_account_info(account_info_iter)?;
@@ -543,13 +546,24 @@ pub fn process_withdraw_ft<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = origin_hash.as_slice();
-    let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
+    if *metadata_info.key != mpl_token_metadata::pda::find_metadata_account(mint_info.key).0 {
+        return Err(BridgeError::WrongMetadataAccount.into());
+    }
+
+    if metadata_info.data.borrow().as_ref().len() == 0 {
+        return Err(BridgeError::UninitializedMetadata.into());
+    }
+
+    let metadata :mpl_token_metadata::state::Metadata =  BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
+
+    let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
 
-    let root = get_merkle_root(ContentNode::new(origin_hash, amount, Some(mint_info.key.to_bytes()), None, owner_info.key.to_bytes(), program_id.to_bytes()), &path)?;
+    let content = ContentNode::new(origin.to_vec(), owner_info.key.to_bytes(), program_id.to_bytes(), TransferOperation::new_ft_transfer(mint_info.key.to_bytes(), amount, metadata.data.name, metadata.data.symbol, metadata.data.uri).get_operation());
+    let root = get_merkle_root(content, &path)?;
+
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     if *bridge_token_info.key !=
@@ -603,7 +617,7 @@ pub fn process_withdraw_ft<'a>(
         system_program,
         WITHDRAW_SIZE,
         program_id,
-        &[&nonce, &[bump_seed]],
+        &[origin.as_slice(), &[bump_seed]],
     )?;
 
     msg!("Initializing withdraw account");
@@ -615,7 +629,7 @@ pub fn process_withdraw_ft<'a>(
 
     withdraw.is_initialized = true;
     withdraw.token_type = FT;
-    withdraw.origin_hash = origin_hash;
+    withdraw.origin = origin;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = amount;
     withdraw.receiver_address = *owner_info.key;
@@ -631,7 +645,7 @@ pub fn process_withdraw_nft<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    origin_hash: [u8; 32],
+    origin: Vec<u8>,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -657,8 +671,7 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::NotInitialized.into());
     }
 
-    let nonce = origin_hash.as_slice();
-    let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
+    let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
     if withdraw_key != *withdraw_info.key {
         return Err(BridgeError::WrongNonce.into());
     }
@@ -671,8 +684,9 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::UninitializedMetadata.into());
     }
 
+    let metadata :mpl_token_metadata::state::Metadata =  BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
+
     let mut collection: Option<[u8; 32]> = {
-        let metadata :mpl_token_metadata::state::Metadata =  BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
         if metadata.collection.is_some() {
             Some(metadata.collection.unwrap().key.to_bytes())
         } else {
@@ -680,7 +694,9 @@ pub fn process_withdraw_nft<'a>(
         }
     };
 
-    let root = get_merkle_root(ContentNode::new(origin_hash, 1, Some(mint_info.key.to_bytes()), collection, owner_info.key.to_bytes(), program_id.to_bytes()), &path)?;
+    let content = ContentNode::new(origin.to_vec(), owner_info.key.to_bytes(), program_id.to_bytes(), TransferOperation::new_nft_transfer(mint_info.key.to_bytes(), collection, metadata.data.name, metadata.data.symbol, metadata.data.uri).get_operation());
+    let root = get_merkle_root(content, &path)?;
+
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     if *bridge_token_info.key !=
@@ -734,7 +750,7 @@ pub fn process_withdraw_nft<'a>(
         system_program,
         WITHDRAW_SIZE,
         program_id,
-        &[&nonce, &[bump_seed]],
+        &[origin.as_slice(), &[bump_seed]],
     )?;
 
     msg!("Initializing withdraw account");
@@ -746,7 +762,7 @@ pub fn process_withdraw_nft<'a>(
 
     withdraw.is_initialized = true;
     withdraw.token_type = NFT;
-    withdraw.origin_hash = origin_hash;
+    withdraw.origin = origin;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = 1;
     withdraw.receiver_address = *owner_info.key;
