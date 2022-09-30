@@ -64,7 +64,7 @@ pub struct DepositNFTArgs {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WithdrawArgs {
     // Default: hash of tx | event_id | network_from
-    pub origin: Vec<u8>,
+    pub origin: [u8; 32],
     pub amount: u64,
     // Signature for the Merkle root
     pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],

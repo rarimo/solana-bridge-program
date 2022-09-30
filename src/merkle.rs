@@ -77,8 +77,8 @@ impl Operation for TransferOperation {
 }
 
 pub struct ContentNode {
-    // Default: hash of tx | event_id | network_from
-    pub origin: Vec<u8>,
+    // Hash of deposit tx info. See spec in core for more information.
+    pub origin: [u8; 32],
     // Solana
     pub network_to: String,
     pub receiver: [u8; 32],
@@ -87,7 +87,7 @@ pub struct ContentNode {
 }
 
 impl ContentNode {
-    pub fn new(origin: Vec<u8>, receiver: [u8; 32], program_id: [u8; 32], data: Vec<u8>) -> Self {
+    pub fn new(origin: [u8; 32], receiver: [u8; 32], program_id: [u8; 32], data: Vec<u8>) -> Self {
         ContentNode {
             origin,
             receiver,
@@ -97,9 +97,9 @@ impl ContentNode {
         }
     }
 
-    pub fn hash(mut self) -> solana_program::keccak::Hash {
+    pub fn hash(self) -> solana_program::keccak::Hash {
         let mut data = Vec::new();
-        data.append(&mut self.origin);
+        data.append(&mut Vec::from(self.origin.as_slice()));
         data.append(&mut Vec::from(self.network_to.as_bytes()));
         data.append(&mut Vec::from(self.receiver.as_slice()));
         data.append(&mut Vec::from(self.program_id.as_slice()));

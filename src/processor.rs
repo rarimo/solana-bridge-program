@@ -441,7 +441,7 @@ pub fn process_withdraw_native<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    origin: Vec<u8>,
+    origin: [u8; 32],
     amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -468,9 +468,8 @@ pub fn process_withdraw_native<'a>(
         return Err(BridgeError::WrongNonce.into());
     }
 
-
     let content = ContentNode::new(
-        origin.to_vec(),
+        origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
         TransferOperation::new_native_transfer(
@@ -527,7 +526,7 @@ pub fn process_withdraw_ft<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    origin: Vec<u8>,
+    origin: [u8; 32],
     amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -570,7 +569,7 @@ pub fn process_withdraw_ft<'a>(
     }
 
     let content = ContentNode::new(
-        origin.to_vec(),
+        origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
         TransferOperation::new_ft_transfer(
@@ -665,7 +664,7 @@ pub fn process_withdraw_nft<'a>(
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    origin: Vec<u8>,
+    origin: [u8; 32],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -715,7 +714,7 @@ pub fn process_withdraw_nft<'a>(
     };
 
     let content = ContentNode::new(
-        origin.to_vec(),
+        origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
         TransferOperation::new_nft_transfer(

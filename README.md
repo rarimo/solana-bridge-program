@@ -75,7 +75,7 @@ Valid Merkle path + admins signature means that data is also valid and signed by
 ## Build
 
 ```shell
- npm run build:program-rust
+npm run build:program-rust
 ```
 
 ## Deploy
