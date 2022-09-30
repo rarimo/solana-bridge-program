@@ -63,8 +63,8 @@ pub struct DepositNFTArgs {
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WithdrawArgs {
-    // Hash of tx | event_id | network_from
-    pub origin_hash: [u8; 32],
+    // Default: hash of tx | event_id | network_from
+    pub origin: [u8; 32],
     pub amount: u64,
     // Signature for the Merkle root
     pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
@@ -171,10 +171,11 @@ pub enum BridgeInstruction {
     ///
     ///   0. `[]` The BridgeAdmin account
     ///   1. `[]` The token mint account
-    ///   2. `[writable,signer]` The owner account
-    ///   3. `[writable]` The owner token associated account
-    ///   4. `[writable]` The bridge token account
-    ///   5. `[writable]` The new Withdraw account
+    ///   2. `[]` The token metadata account
+    ///   3. `[writable,signer]` The owner account
+    ///   4. `[writable]` The owner token associated account
+    ///   5. `[writable]` The bridge token account
+    ///   6. `[writable]` The new Withdraw account
     ///   7. `[]` Token program id
     ///   8. `[]` System program
     ///   9. `[]` Rent sysvar

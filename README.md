@@ -74,12 +74,12 @@ Valid Merkle path + admins signature means that data is also valid and signed by
 
 ## Build
 
-```commandline
- npm run build:program-rust
+```shell
+npm run build:program-rust
 ```
 
 ## Deploy
-```commandline
+```shell
 solana program deploy --program-id ./dist/program/bridge-keypair.json ./dist/program/bridge.so
 ```
 

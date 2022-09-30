@@ -3,7 +3,7 @@ use solana_program::{
     hash, msg,
     entrypoint::ProgramResult,
 };
-use crate::merkle_node::ContentNode;
+use crate::merkle::ContentNode;
 use solana_program::secp256k1_recover::{secp256k1_recover, Secp256k1Pubkey, SECP256K1_PUBLIC_KEY_LENGTH};
 use solana_program::program_error::ProgramError;
 use std::hash::Hash;
