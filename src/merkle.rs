@@ -77,6 +77,7 @@ impl Operation for TransferOperation {
         data.append(&mut Vec::from(self.name.as_bytes()));
         data.append(&mut Vec::from(self.symbol.as_bytes()));
         data.append(&mut Vec::from(self.uri.as_bytes()));
+        data.append(&mut Vec::from(amount_bytes(self.decimals as u64)));
         data
     }
 }

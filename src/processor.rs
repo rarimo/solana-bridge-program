@@ -572,8 +572,6 @@ pub fn process_withdraw_ft<'a>(
         return Err(BridgeError::WrongMetadataAccount.into());
     }
 
-    let metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
-
     if let Some(token_seed) = token_seed {
         try_mint_token_with_meta(
             program_id,
@@ -588,6 +586,8 @@ pub fn process_withdraw_ft<'a>(
             seeds,
         )?;
     }
+
+    let metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
 
     let mint: spl_token::state::Mint = Mint::unpack_from_slice(&mut mint_info.data.borrow_mut().as_ref())?;
 
@@ -612,6 +612,19 @@ pub fn process_withdraw_ft<'a>(
         return Err(BridgeError::WrongTokenAccount.into());
     }
 
+    if bridge_associated_info.data.borrow().as_ref().len() == 0 {
+        msg!("Create bridge associated account");
+        call_create_associated_account(
+            owner_info,
+            bridge_admin_info,
+            mint_info,
+            bridge_associated_info,
+            rent_info,
+            system_program,
+            token_program,
+        )?;
+    }
+
     let bridge_associated = spl_token::state::Account::unpack_from_slice(&mut bridge_associated_info.data.borrow_mut().as_ref())?;
 
     if *owner_associated_info.key !=
@@ -620,7 +633,7 @@ pub fn process_withdraw_ft<'a>(
     }
 
     if owner_associated_info.data.borrow().as_ref().len() == 0 {
-        msg!("Deposit owner associated account");
+        msg!("Create owner associated account");
         call_create_associated_account(
             owner_info,
             owner_info,
@@ -632,15 +645,15 @@ pub fn process_withdraw_ft<'a>(
         )?;
     }
 
-    let to_mint_amount = max(amount - bridge_associated.amount, 0u64);
-    if to_mint_amount > 0 {
+
+    if bridge_associated.amount < amount {
         msg!("Minting token to bridge admin");
         call_mint_to(
             mint_info,
             bridge_associated_info,
             bridge_admin_info,
             seeds,
-            to_mint_amount,
+            amount - bridge_associated.amount,
         )?;
     }
 
@@ -727,8 +740,6 @@ pub fn process_withdraw_nft<'a>(
         return Err(BridgeError::WrongMetadataAccount.into());
     }
 
-    let metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
-
     if let Some(token_seed) = token_seed {
         try_mint_token_with_meta(
             program_id,
@@ -743,6 +754,9 @@ pub fn process_withdraw_nft<'a>(
             seeds,
         )?;
     }
+
+
+    let metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
 
     let mut collection: Option<[u8; 32]> = {
         if metadata.collection.is_some() {
@@ -770,6 +784,19 @@ pub fn process_withdraw_nft<'a>(
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
         return Err(BridgeError::WrongTokenAccount.into());
+    }
+
+    if bridge_associated_info.data.borrow().as_ref().len() == 0 {
+        msg!("Create bridge associated account");
+        call_create_associated_account(
+            owner_info,
+            bridge_admin_info,
+            mint_info,
+            bridge_associated_info,
+            rent_info,
+            system_program,
+            token_program,
+        )?;
     }
 
     let bridge_associated = spl_token::state::Account::unpack_from_slice(&mut bridge_associated_info.data.borrow_mut().as_ref())?;
