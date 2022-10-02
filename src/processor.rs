@@ -308,7 +308,7 @@ pub fn process_deposit_ft<'a>(
             bridge_associated_info,
             owner_info,
             amount,
-            &[&[&[]]],
+            &[],
         )?;
     }
 
@@ -410,7 +410,7 @@ pub fn process_deposit_nft<'a>(
             bridge_associated_info,
             owner_info,
             1,
-            &[&[&[]]],
+            &[],
         )?;
     }
 
