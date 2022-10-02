@@ -139,7 +139,7 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
-    ///   1. `[]` The token mint account
+    ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The bridge token account
     ///   4. `[writable]` The new Deposit account
@@ -155,7 +155,7 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
-    ///   1. `[]` The token mint account
+    ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The bridge token account
     ///   4. `[writable]` The new Deposit account
