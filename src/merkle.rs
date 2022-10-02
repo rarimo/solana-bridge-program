@@ -11,7 +11,7 @@ pub trait Operation {
     fn get_operation(&self) -> Vec<u8>;
 }
 
-pub struct TransferOperation {
+pub struct TransferFullMetaOperation {
     // Empty line if is native
     pub address_to: Option<[u8; 32]>,
     // Empty line if is native or fungible
@@ -23,21 +23,9 @@ pub struct TransferOperation {
     pub decimals: u8,
 }
 
-impl TransferOperation {
-    pub fn new_native_transfer(amount: u64) -> Self {
-        TransferOperation {
-            address_to: None,
-            token_id_to: None,
-            amount,
-            name: "".to_string(),
-            symbol: "".to_string(),
-            uri: "".to_string(),
-            decimals: SOLANA_NATIVE_DECIMALS,
-        }
-    }
-
+impl TransferFullMetaOperation {
     pub fn new_ft_transfer(mint: [u8; 32], amount: u64, name: String, symbol: String, uri: String, decimals: u8) -> Self {
-        TransferOperation {
+        TransferFullMetaOperation {
             address_to: Some(mint),
             token_id_to: None,
             amount,
@@ -49,7 +37,7 @@ impl TransferOperation {
     }
 
     pub fn new_nft_transfer(mint: [u8; 32], collection: Option<[u8; 32]>, name: String, symbol: String, uri: String) -> Self {
-        TransferOperation {
+        TransferFullMetaOperation {
             address_to: collection,
             token_id_to: Some(mint),
             amount: 1,
@@ -57,6 +45,46 @@ impl TransferOperation {
             symbol,
             uri,
             decimals: 0,
+        }
+    }
+}
+
+impl Operation for TransferFullMetaOperation {
+    fn get_operation(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+
+        if let Some(val) = self.address_to {
+            data.append(&mut Vec::from(val.as_slice()));
+        }
+
+        if let Some(val) = self.token_id_to {
+            data.append(&mut Vec::from(val.as_slice()));
+        }
+
+        data.append(&mut Vec::from(amount_bytes(self.amount)));
+        data.append(&mut Vec::from(self.name.as_bytes()));
+        data.append(&mut Vec::from(self.symbol.as_bytes()));
+        data.append(&mut Vec::from(self.uri.as_bytes()));
+        data.append(&mut Vec::from(amount_bytes(self.decimals as u64)));
+        data
+    }
+}
+
+
+pub struct TransferOperation {
+    // Empty line if is native
+    pub address_to: Option<[u8; 32]>,
+    // Empty line if is native or fungible
+    pub token_id_to: Option<[u8; 32]>,
+    pub amount: u64,
+}
+
+impl TransferOperation {
+    pub fn new_native_transfer(amount: u64) -> Self {
+        TransferOperation {
+            address_to: None,
+            token_id_to: None,
+            amount,
         }
     }
 }
@@ -74,10 +102,6 @@ impl Operation for TransferOperation {
         }
 
         data.append(&mut Vec::from(amount_bytes(self.amount)));
-        data.append(&mut Vec::from(self.name.as_bytes()));
-        data.append(&mut Vec::from(self.symbol.as_bytes()));
-        data.append(&mut Vec::from(self.uri.as_bytes()));
-        data.append(&mut Vec::from(amount_bytes(self.decimals as u64)));
         data
     }
 }

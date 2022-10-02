@@ -25,7 +25,7 @@ use crate::{
     util::{verify_ecdsa_signature, get_merkle_root},
     merkle::ContentNode,
 };
-use crate::merkle::{TransferOperation, Operation};
+use crate::merkle::{TransferOperation, Operation, TransferFullMetaOperation};
 use crate::instruction::SignedMetadata;
 use std::cmp::max;
 use spl_token::instruction::burn;
@@ -595,7 +595,7 @@ pub fn process_withdraw_ft<'a>(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferOperation::new_ft_transfer(
+        TransferFullMetaOperation::new_ft_transfer(
             mint_info.key.to_bytes(),
             amount,
             metadata.data.name.trim_matches(char::from(0)).to_string(),
@@ -770,7 +770,7 @@ pub fn process_withdraw_nft<'a>(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferOperation::new_nft_transfer(
+        TransferFullMetaOperation::new_nft_transfer(
             mint_info.key.to_bytes(),
             collection,
             metadata.data.name.trim_matches(char::from(0)).to_string(),
