@@ -49,6 +49,7 @@ pub struct DepositFTArgs {
     pub receiver_address: String,
     pub seeds: [u8; 32],
     pub nonce: [u8; 32],
+    pub token_seed: Option<[u8; 32]>,
 }
 
 #[repr(C)]
@@ -58,6 +59,16 @@ pub struct DepositNFTArgs {
     pub receiver_address: String,
     pub seeds: [u8; 32],
     pub nonce: [u8; 32],
+    pub token_seed: Option<[u8; 32]>,
+}
+
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct SignedMetadata {
+    pub name: String,
+    pub symbol: String,
+    pub uri: String,
+    pub decimals: u8,
 }
 
 #[repr(C)]
@@ -72,15 +83,16 @@ pub struct WithdrawArgs {
     // Merkle path
     pub path: Vec<[u8; 32]>,
     pub seeds: [u8; 32],
+    pub token_seed: Option<[u8; 32]>,
+    pub signed_meta: Option<SignedMetadata>,
 }
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub struct MintFTArgs {
-    pub data: DataV2,
+pub struct MintCollectionArgs {
+    pub data: SignedMetadata,
     pub seeds: [u8; 32],
-    pub amount: u64,
-    pub decimals: u8,
+    pub token_seed: [u8; 32],
 }
 
 #[repr(C)]
@@ -127,7 +139,7 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
-    ///   1. `[]` The token mint account
+    ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The bridge token account
     ///   4. `[writable]` The new Deposit account
@@ -143,7 +155,7 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
-    ///   1. `[]` The token mint account
+    ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The bridge token account
     ///   4. `[writable]` The new Deposit account
@@ -170,8 +182,8 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
-    ///   1. `[]` The token mint account
-    ///   2. `[]` The token metadata account
+    ///   1. `[writable]` The token mint account
+    ///   2. `[writable]` The token metadata account
     ///   3. `[writable,signer]` The owner account
     ///   4. `[writable]` The owner token associated account
     ///   5. `[writable]` The bridge token account
@@ -179,7 +191,8 @@ pub enum BridgeInstruction {
     ///   7. `[]` Token program id
     ///   8. `[]` System program
     ///   9. `[]` Rent sysvar
-    ///   10. `[]` Associated token program
+    ///   10. `[]` Metadata program
+    ///   11. `[]` Associated token program
     WithdrawFT(WithdrawArgs),
 
     /// Make NFT withdraw from bridge.
@@ -187,8 +200,8 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[]` The BridgeAdmin account
-    ///   1. `[]` The token mint account
-    ///   2. `[]` The token metadata account
+    ///   1. `[writable]` The token mint account
+    ///   2. `[writable]` The token metadata account
     ///   3. `[writable,signer]` The owner account
     ///   4. `[writable]` The owner token associated account
     ///   5. `[writable]` The bridge token account
@@ -196,10 +209,11 @@ pub enum BridgeInstruction {
     ///   7. `[]` Token program id
     ///   8. `[]` System program
     ///   9. `[]` Rent sysvar
-    ///   10. `[]` Associated token program
+    ///   10. `[]` Metadata program
+    ///   11. `[]` Associated token program
     WithdrawNFT(WithdrawArgs),
 
-    /// Make FT by bridge.
+    /// Create collection NFT owned by brisge
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The BridgeAdmin account
@@ -212,29 +226,9 @@ pub enum BridgeInstruction {
     ///   7. `[]` Rent sysvar
     ///   8. `[]` System program
     ///   9. `[]` Associated token program
-    MintFT(MintFTArgs),
-
-    /// Make NFT by bridge.
-    /// Accounts expected by this instruction:
-    ///
-    ///   0. `[writable]` The BridgeAdmin account
-    ///   1. `[writable,signed]` The token mint account
-    ///   2. `[writable]` The bridge token account
-    ///   3. `[writable]` The new metadata account
-    ///   4. `[writable]` The new master edition account
-    ///   5. `[writable,signer]` The payer account
-    ///   6. `[]` Token program id
-    ///   7. `[]` Token metadata program id
-    ///   8. `[]` Rent sysvar
-    ///   9. `[]` System program
-    ///   10. `[]` Associated token program
-    ///
-    /// Optional accounts (if verify=true)
-    ///   11. `[]` The collection account
-    ///   12. `[]` The collection metadata account
-    ///   13. `[]` The collection master edition account
-    MintNFT(MintNFTArgs),
+    MintCollection(MintCollectionArgs),
 }
+
 /*
 pub fn initialize_admin(
     program_id: Pubkey,

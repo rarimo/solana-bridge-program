@@ -76,6 +76,15 @@ pub enum BridgeError {
     /// 22 Wrong token standard
     #[error("Wrong token standard")]
     WrongTokenStandard,
+    /// 23 Wrong token seed
+    #[error("Wrong token seed")]
+    WrongTokenSeed,
+    /// 24 No token metadata
+    #[error("No token metadata provided")]
+    NoTokenMeta,
+    /// 25 Uninitialized mint
+    #[error("Uninitialized mint")]
+    UninitializedMint,
 }
 
 

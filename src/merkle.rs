@@ -5,6 +5,7 @@ use solana_program::{
 use std::hash::Hash;
 
 const SOLANA_NETWORK: &str = "Solana";
+const SOLANA_NATIVE_DECIMALS: u8 = 9u8;
 
 pub trait Operation {
     fn get_operation(&self) -> Vec<u8>;
@@ -19,6 +20,7 @@ pub struct TransferOperation {
     pub name: String,
     pub symbol: String,
     pub uri: String,
+    pub decimals: u8,
 }
 
 impl TransferOperation {
@@ -30,10 +32,11 @@ impl TransferOperation {
             name: "".to_string(),
             symbol: "".to_string(),
             uri: "".to_string(),
+            decimals: SOLANA_NATIVE_DECIMALS,
         }
     }
 
-    pub fn new_ft_transfer(mint: [u8; 32], amount: u64, name: String, symbol: String, uri: String) -> Self {
+    pub fn new_ft_transfer(mint: [u8; 32], amount: u64, name: String, symbol: String, uri: String, decimals: u8) -> Self {
         TransferOperation {
             address_to: Some(mint),
             token_id_to: None,
@@ -41,6 +44,7 @@ impl TransferOperation {
             name,
             symbol,
             uri,
+            decimals,
         }
     }
 
@@ -52,6 +56,7 @@ impl TransferOperation {
             name,
             symbol,
             uri,
+            decimals: 0,
         }
     }
 }
@@ -72,6 +77,7 @@ impl Operation for TransferOperation {
         data.append(&mut Vec::from(self.name.as_bytes()));
         data.append(&mut Vec::from(self.symbol.as_bytes()));
         data.append(&mut Vec::from(self.uri.as_bytes()));
+        data.append(&mut Vec::from(amount_bytes(self.decimals as u64)));
         data
     }
 }
