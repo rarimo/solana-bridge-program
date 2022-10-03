@@ -38,7 +38,6 @@ pub struct DepositNativeArgs {
     pub network_to: String,
     pub receiver_address: String,
     pub seeds: [u8; 32],
-    pub nonce: [u8; 32],
 }
 
 #[repr(C)]
@@ -48,7 +47,6 @@ pub struct DepositFTArgs {
     pub network_to: String,
     pub receiver_address: String,
     pub seeds: [u8; 32],
-    pub nonce: [u8; 32],
     pub token_seed: Option<[u8; 32]>,
 }
 
@@ -58,7 +56,6 @@ pub struct DepositNFTArgs {
     pub network_to: String,
     pub receiver_address: String,
     pub seeds: [u8; 32],
-    pub nonce: [u8; 32],
     pub token_seed: Option<[u8; 32]>,
 }
 
