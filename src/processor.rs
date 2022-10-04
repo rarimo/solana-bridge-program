@@ -167,7 +167,6 @@ pub fn process_deposit_native<'a>(
     let account_info_iter = &mut accounts.iter();
 
     let bridge_admin_info = next_account_info(account_info_iter)?;
-    let deposit_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
@@ -215,7 +214,6 @@ pub fn process_deposit_ft<'a>(
     let mint_info = next_account_info(account_info_iter)?;
     let owner_associated_info = next_account_info(account_info_iter)?;
     let bridge_associated_info = next_account_info(account_info_iter)?;
-    let deposit_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
 
     let token_program = next_account_info(account_info_iter)?;
@@ -293,7 +291,6 @@ pub fn process_deposit_nft<'a>(
     let mint_info = next_account_info(account_info_iter)?;
     let owner_associated_info = next_account_info(account_info_iter)?;
     let bridge_associated_info = next_account_info(account_info_iter)?;
-    let deposit_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
 
     let token_program = next_account_info(account_info_iter)?;
