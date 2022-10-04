@@ -57,14 +57,18 @@ impl Operation for TransferFullMetaOperation {
             data.append(&mut Vec::from(val.as_slice()));
         }
 
+        data.append(&mut Vec::from(self.name.as_bytes()));
+
         if let Some(val) = self.token_id_to {
             data.append(&mut Vec::from(val.as_slice()));
         }
 
-        data.append(&mut Vec::from(amount_bytes(self.amount)));
-        data.append(&mut Vec::from(self.name.as_bytes()));
         data.append(&mut Vec::from(self.symbol.as_bytes()));
+
+        data.append(&mut Vec::from(amount_bytes(self.amount)));
+
         data.append(&mut Vec::from(self.uri.as_bytes()));
+
         data.append(&mut Vec::from(amount_bytes(self.decimals as u64)));
         data
     }
@@ -77,6 +81,7 @@ pub struct TransferOperation {
     // Empty line if is native or fungible
     pub token_id_to: Option<[u8; 32]>,
     pub amount: u64,
+    pub uri: String,
 }
 
 impl TransferOperation {
@@ -85,6 +90,7 @@ impl TransferOperation {
             address_to: None,
             token_id_to: None,
             amount,
+            uri: "".to_string(),
         }
     }
 }
@@ -100,6 +106,8 @@ impl Operation for TransferOperation {
         if let Some(val) = self.token_id_to {
             data.append(&mut Vec::from(val.as_slice()));
         }
+
+        data.append(&mut Vec::from(self.uri.as_bytes()));
 
         data.append(&mut Vec::from(amount_bytes(self.amount)));
         data
@@ -129,11 +137,16 @@ impl ContentNode {
 
     pub fn hash(self) -> solana_program::keccak::Hash {
         let mut data = Vec::new();
-        data.append(&mut Vec::from(self.origin.as_slice()));
-        data.append(&mut Vec::from(self.network_to.as_bytes()));
-        data.append(&mut Vec::from(self.receiver.as_slice()));
-        data.append(&mut Vec::from(self.program_id.as_slice()));
         data.append(&mut Vec::from(self.data));
+
+        data.append(&mut Vec::from(self.origin.as_slice()));
+
+        data.append(&mut Vec::from(self.network_to.as_bytes()));
+
+        data.append(&mut Vec::from(self.receiver.as_slice()));
+
+        data.append(&mut Vec::from(self.program_id.as_slice()));
+
         solana_program::keccak::hash(data.as_slice())
     }
 }
