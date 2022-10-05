@@ -21,7 +21,7 @@ use crate::{
     instruction::BridgeInstruction,
     state::{BridgeAdmin, BRIDGE_ADMIN_SIZE, TokenType::{NFT, FT, Native}},
     error::BridgeError,
-    state::{DEPOSIT_SIZE, Deposit, WITHDRAW_SIZE, Withdraw},
+    state::{WITHDRAW_SIZE, Withdraw},
     util::{verify_ecdsa_signature, get_merkle_root},
     merkle::ContentNode,
 };
@@ -48,17 +48,17 @@ pub fn process_instruction<'a>(
         BridgeInstruction::DepositNative(args) => {
             msg!("Instruction: Deposit SOL");
             args.validate()?;
-            process_deposit_native(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.amount, args.nonce)
+            process_deposit_native(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.amount)
         }
         BridgeInstruction::DepositFT(args) => {
             msg!("Instruction: Deposit FT");
             args.validate()?;
-            process_deposit_ft(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.amount, args.nonce, args.token_seed)
+            process_deposit_ft(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.amount, args.token_seed)
         }
         BridgeInstruction::DepositNFT(args) => {
             msg!("Instruction: Deposit NFT");
             args.validate()?;
-            process_deposit_nft(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.nonce, args.token_seed)
+            process_deposit_nft(program_id, accounts, args.seeds, args.network_to, args.receiver_address, args.token_seed)
         }
 
         BridgeInstruction::WithdrawNative(args) => {
@@ -163,12 +163,10 @@ pub fn process_deposit_native<'a>(
     network: String,
     receiver: String,
     amount: u64,
-    nonce: [u8; 32],
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
     let bridge_admin_info = next_account_info(account_info_iter)?;
-    let deposit_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
@@ -181,11 +179,6 @@ pub fn process_deposit_native<'a>(
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
         return Err(BridgeError::NotInitialized.into());
-    }
-
-    let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if deposit_key != *deposit_info.key {
-        return Err(BridgeError::WrongNonce.into());
     }
 
     let transfer_tokens_instruction = solana_program::system_instruction::transfer(
@@ -203,30 +196,6 @@ pub fn process_deposit_native<'a>(
         ],
     )?;
 
-    msg!("Creating deposit account");
-    call_create_account(
-        owner_info,
-        deposit_info,
-        rent_info,
-        system_program,
-        DEPOSIT_SIZE,
-        program_id,
-        &[&nonce, &[bump_seed]],
-    )?;
-
-    let mut deposit: Deposit = BorshDeserialize::deserialize(&mut deposit_info.data.borrow_mut().as_ref())?;
-    if deposit.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
-    }
-
-    deposit.is_initialized = true;
-    deposit.token_type = Native;
-    deposit.amount = amount;
-    deposit.mint = Option::None;
-    deposit.network = network;
-    deposit.receiver_address = receiver;
-    deposit.serialize(&mut *deposit_info.data.borrow_mut())?;
-    msg!("Deposit account created");
     Ok(())
 }
 
@@ -237,7 +206,6 @@ pub fn process_deposit_ft<'a>(
     network: String,
     receiver: String,
     amount: u64,
-    nonce: [u8; 32],
     token_seed: Option<[u8; 32]>,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -246,7 +214,6 @@ pub fn process_deposit_ft<'a>(
     let mint_info = next_account_info(account_info_iter)?;
     let owner_associated_info = next_account_info(account_info_iter)?;
     let bridge_associated_info = next_account_info(account_info_iter)?;
-    let deposit_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
 
     let token_program = next_account_info(account_info_iter)?;
@@ -262,11 +229,6 @@ pub fn process_deposit_ft<'a>(
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
         return Err(BridgeError::NotInitialized.into());
-    }
-
-    let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if deposit_key != *deposit_info.key {
-        return Err(BridgeError::WrongNonce.into());
     }
 
     if *bridge_associated_info.key !=
@@ -312,30 +274,6 @@ pub fn process_deposit_ft<'a>(
         )?;
     }
 
-    msg!("Creating deposit account");
-    call_create_account(
-        owner_info,
-        deposit_info,
-        rent_info,
-        system_program,
-        DEPOSIT_SIZE,
-        program_id,
-        &[&nonce, &[bump_seed]],
-    )?;
-
-    let mut deposit: Deposit = BorshDeserialize::deserialize(&mut deposit_info.data.borrow_mut().as_ref())?;
-    if deposit.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
-    }
-
-    deposit.is_initialized = true;
-    deposit.mint = Option::Some(mint_info.key.clone());
-    deposit.token_type = FT;
-    deposit.network = network;
-    deposit.receiver_address = receiver;
-    deposit.amount = amount;
-    deposit.serialize(&mut *deposit_info.data.borrow_mut())?;
-    msg!("Deposit account created");
     Ok(())
 }
 
@@ -345,7 +283,6 @@ pub fn process_deposit_nft<'a>(
     seeds: [u8; 32],
     network: String,
     receiver: String,
-    nonce: [u8; 32],
     token_seed: Option<[u8; 32]>,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -354,7 +291,6 @@ pub fn process_deposit_nft<'a>(
     let mint_info = next_account_info(account_info_iter)?;
     let owner_associated_info = next_account_info(account_info_iter)?;
     let bridge_associated_info = next_account_info(account_info_iter)?;
-    let deposit_info = next_account_info(account_info_iter)?;
     let owner_info = next_account_info(account_info_iter)?;
 
     let token_program = next_account_info(account_info_iter)?;
@@ -414,35 +350,6 @@ pub fn process_deposit_nft<'a>(
         )?;
     }
 
-    let (deposit_key, bump_seed) = Pubkey::find_program_address(&[&nonce], program_id);
-    if deposit_key != *deposit_info.key {
-        return Err(BridgeError::WrongNonce.into());
-    }
-
-    msg!("Creating deposit account");
-    call_create_account(
-        owner_info,
-        deposit_info,
-        rent_info,
-        system_program,
-        DEPOSIT_SIZE,
-        program_id,
-        &[&nonce, &[bump_seed]],
-    )?;
-
-    let mut deposit: Deposit = BorshDeserialize::deserialize(&mut deposit_info.data.borrow_mut().as_ref())?;
-    if deposit.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
-    }
-
-    deposit.is_initialized = true;
-    deposit.amount = 1;
-    deposit.token_type = NFT;
-    deposit.mint = Option::Some(mint_info.key.clone());
-    deposit.network = network;
-    deposit.receiver_address = receiver;
-    deposit.serialize(&mut *deposit_info.data.borrow_mut())?;
-    msg!("Deposit account created");
     Ok(())
 }
 

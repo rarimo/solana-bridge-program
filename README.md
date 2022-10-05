@@ -33,21 +33,6 @@ pub struct BridgeAdmin {
 }
 ```
 
-Deposit account stores information about successfully processed deposit operation
-```rust
-pub struct Deposit {
-    pub token_type: TokenType,
-    // Can be None for native token
-    pub mint: Option<Pubkey>,
-    pub amount: u64,
-    // Network to (target)
-    pub network: String,
-    // Receiver address on target network
-    pub receiver_address: String,
-    pub is_initialized: bool,
-}
-```
-
 Withdraw account stores information about successfully processed withdrawal operation
 ```rust
 pub struct Withdraw {

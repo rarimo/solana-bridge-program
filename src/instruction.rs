@@ -38,7 +38,6 @@ pub struct DepositNativeArgs {
     pub network_to: String,
     pub receiver_address: String,
     pub seeds: [u8; 32],
-    pub nonce: [u8; 32],
 }
 
 #[repr(C)]
@@ -48,7 +47,6 @@ pub struct DepositFTArgs {
     pub network_to: String,
     pub receiver_address: String,
     pub seeds: [u8; 32],
-    pub nonce: [u8; 32],
     pub token_seed: Option<[u8; 32]>,
 }
 
@@ -58,7 +56,6 @@ pub struct DepositNFTArgs {
     pub network_to: String,
     pub receiver_address: String,
     pub seeds: [u8; 32],
-    pub nonce: [u8; 32],
     pub token_seed: Option<[u8; 32]>,
 }
 
@@ -128,10 +125,9 @@ pub enum BridgeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The BridgeAdmin account
-    ///   1. `[writable]` The new Deposit account
-    ///   2. `[writable,signer]` The owner account
-    ///   3. `[]` System program
-    ///   4. `[]` Rent sysvar
+    ///   1. `[writable,signer]` The owner account
+    ///   2. `[]` System program
+    ///   3. `[]` Rent sysvar
     DepositNative(DepositNativeArgs),
 
     /// Make FT deposit on bridge.
@@ -142,12 +138,11 @@ pub enum BridgeInstruction {
     ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The bridge token account
-    ///   4. `[writable]` The new Deposit account
-    ///   5. `[writable,signer]` The token owner account
-    ///   6. `[]` Token program id
-    ///   7. `[]` System program
-    ///   8. `[]` Rent sysvar
-    ///   9. `[]` Associated token program
+    ///   4. `[writable,signer]` The token owner account
+    ///   5. `[]` Token program id
+    ///   6. `[]` System program
+    ///   7. `[]` Rent sysvar
+    ///   8. `[]` Associated token program
     DepositFT(DepositFTArgs),
 
     /// Make NFT deposit on bridge.
@@ -158,12 +153,11 @@ pub enum BridgeInstruction {
     ///   1. `[writable]` The token mint account
     ///   2. `[writable]` The owner token associated account
     ///   3. `[writable]` The bridge token account
-    ///   4. `[writable]` The new Deposit account
-    ///   5. `[writable,signer]` The token owner account
-    ///   6. `[]` Token program id
-    ///   7. `[]` System program
-    ///   8. `[]` Rent sysvar
-    ///   9. `[]` Associated token program
+    ///   4. `[writable,signer]` The token owner account
+    ///   5. `[]` Token program id
+    ///   6. `[]` System program
+    ///   7. `[]` Rent sysvar
+    ///   8. `[]` Associated token program
     DepositNFT(DepositNFTArgs),
 
     /// Make NFT withdraw from bridge.
