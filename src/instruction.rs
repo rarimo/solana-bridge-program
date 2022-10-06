@@ -229,7 +229,7 @@ pub enum BridgeInstruction {
     MintCollection(MintCollectionArgs),
 }
 
-/*
+
 pub fn initialize_admin(
     program_id: Pubkey,
     bridge_admin: Pubkey,
@@ -242,6 +242,7 @@ pub fn initialize_admin(
         accounts: vec![
             AccountMeta::new(bridge_admin, false),
             AccountMeta::new(fee_payer, true),
+            AccountMeta::new_readonly(solana_program::system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
         data: BridgeInstruction::InitializeAdmin(InitializeAdminArgs {
@@ -256,6 +257,7 @@ pub fn transfer_ownership(
     bridge_admin: Pubkey,
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     new_public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    recovery_id: u8,
     seeds: [u8; 32],
 ) -> Instruction {
     Instruction {
@@ -267,29 +269,27 @@ pub fn transfer_ownership(
             signature,
             new_public_key,
             seeds,
+            recovery_id,
         }).try_to_vec().unwrap(),
     }
 }
 
-
 pub fn deposit_native(
     program_id: Pubkey,
     bridge_admin: Pubkey,
-    deposit: Pubkey,
     owner: Pubkey,
     seeds: [u8; 32],
     network_to: String,
     amount: u64,
     receiver_address: String,
-    nonce: [u8; 32],
+    bundle_data: Option<Vec<u8>>,
+    bundle_seed: Option<[u8; 32]>,
 ) -> Instruction {
     Instruction {
         program_id,
         accounts: vec![
-            AccountMeta::new_readonly(bridge_admin, false),
-            AccountMeta::new(deposit, false),
+            AccountMeta::new(bridge_admin, false),
             AccountMeta::new(owner, true),
-            AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
@@ -298,7 +298,8 @@ pub fn deposit_native(
             network_to,
             receiver_address,
             seeds,
-            nonce,
+            bundle_data,
+            bundle_seed,
         }).try_to_vec().unwrap(),
     }
 }
@@ -307,24 +308,25 @@ pub fn deposit_ft(
     program_id: Pubkey,
     bridge_admin: Pubkey,
     mint: Pubkey,
-    owner_associated: Pubkey,
-    bridge_associated: Pubkey,
-    deposit: Pubkey,
     owner: Pubkey,
     seeds: [u8; 32],
     network_to: String,
     receiver_address: String,
     amount: u64,
-    nonce: [u8; 32],
+    token_seed: Option<[u8; 32]>,
+    bundle_data: Option<Vec<u8>>,
+    bundle_seed: Option<[u8; 32]>,
 ) -> Instruction {
+    let owner_associated = get_associated_token_address(&owner, &mint);
+    let bridge_associated = get_associated_token_address(&bridge_admin, &mint);
+
     Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new_readonly(bridge_admin, false),
-            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(mint, false),
             AccountMeta::new(owner_associated, false),
             AccountMeta::new(bridge_associated, false),
-            AccountMeta::new(deposit, false),
             AccountMeta::new(owner, true),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
@@ -336,7 +338,9 @@ pub fn deposit_ft(
             network_to,
             receiver_address,
             seeds,
-            nonce,
+            token_seed,
+            bundle_data,
+            bundle_seed,
         }).try_to_vec().unwrap(),
     }
 }
@@ -345,23 +349,24 @@ pub fn deposit_nft(
     program_id: Pubkey,
     bridge_admin: Pubkey,
     mint: Pubkey,
-    owner_associated: Pubkey,
-    bridge_associated: Pubkey,
-    deposit: Pubkey,
     owner: Pubkey,
     seeds: [u8; 32],
     network_to: String,
     receiver_address: String,
-    nonce: [u8; 32],
+    token_seed: Option<[u8; 32]>,
+    bundle_data: Option<Vec<u8>>,
+    bundle_seed: Option<[u8; 32]>,
 ) -> Instruction {
+    let owner_associated = get_associated_token_address(&owner, &mint);
+    let bridge_associated = get_associated_token_address(&bridge_admin, &mint);
+
     Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new_readonly(bridge_admin, false),
-            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(mint, false),
             AccountMeta::new(owner_associated, false),
             AccountMeta::new(bridge_associated, false),
-            AccountMeta::new(deposit, false),
             AccountMeta::new(owner, true),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
@@ -372,7 +377,9 @@ pub fn deposit_nft(
             network_to,
             receiver_address,
             seeds,
-            nonce,
+            token_seed,
+            bundle_data,
+            bundle_seed,
         }).try_to_vec().unwrap(),
     }
 }
@@ -383,10 +390,13 @@ pub fn withdraw_native(
     owner: Pubkey,
     withdraw: Pubkey,
     seeds: [u8; 32],
-    content: SignedContent,
-    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    origin: [u8; 32],
+    amount: u64,
+    signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    recovery_id: u8,
     path: Vec<[u8; 32]>,
-    root: [u8; 32],
+    token_seed: Option<[u8; 32]>,
+    signed_meta: Option<SignedMetadata>,
 ) -> Instruction {
     Instruction {
         program_id,
@@ -399,11 +409,14 @@ pub fn withdraw_native(
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
         data: BridgeInstruction::WithdrawNative(WithdrawArgs {
-            content,
+            origin,
+            amount,
             signature,
+            recovery_id,
             path,
-            root,
             seeds,
+            token_seed,
+            signed_meta
         }).try_to_vec().unwrap(),
     }
 }
@@ -413,15 +426,19 @@ pub fn withdraw_ft(
     bridge_admin: Pubkey,
     mint: Pubkey,
     owner: Pubkey,
-    owner_associated: Pubkey,
-    bridge_associated: Pubkey,
     withdraw: Pubkey,
     seeds: [u8; 32],
-    content: SignedContent,
-    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    origin: [u8; 32],
+    amount: u64,
+    signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    recovery_id: u8,
     path: Vec<[u8; 32]>,
-    root: [u8; 32],
+    token_seed: Option<[u8; 32]>,
+    signed_meta: Option<SignedMetadata>,
 ) -> Instruction {
+    let owner_associated = get_associated_token_address(&owner, &mint);
+    let bridge_associated = get_associated_token_address(&bridge_admin, &mint);
+
     Instruction {
         program_id,
         accounts: vec![
@@ -437,11 +454,14 @@ pub fn withdraw_ft(
             AccountMeta::new_readonly(spl_associated_token_account::id(), false),
         ],
         data: BridgeInstruction::WithdrawFT(WithdrawArgs {
-            content,
+            origin,
+            amount,
             signature,
+            recovery_id,
             path,
-            root,
             seeds,
+            token_seed,
+            signed_meta,
         }).try_to_vec().unwrap(),
     }
 }
@@ -450,21 +470,27 @@ pub fn withdraw_nft(
     program_id: Pubkey,
     bridge_admin: Pubkey,
     mint: Pubkey,
+    metadata: Pubkey,
     owner: Pubkey,
-    owner_associated: Pubkey,
-    bridge_associated: Pubkey,
     withdraw: Pubkey,
     seeds: [u8; 32],
-    content: SignedContent,
-    signature: [u8; SECP256K1_SIGNATURE_LENGTH],
+    origin: [u8; 32],
+    amount: u64,
+    signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    recovery_id: u8,
     path: Vec<[u8; 32]>,
-    root: [u8; 32],
+    token_seed: Option<[u8; 32]>,
+    signed_meta: Option<SignedMetadata>,
 ) -> Instruction {
+    let owner_associated = get_associated_token_address(&owner, &mint);
+    let bridge_associated = get_associated_token_address(&bridge_admin, &mint);
+
     Instruction {
         program_id,
         accounts: vec![
             AccountMeta::new_readonly(bridge_admin, false),
-            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new(mint, false),
+            AccountMeta::new(metadata, false),
             AccountMeta::new(owner, true),
             AccountMeta::new(owner_associated, false),
             AccountMeta::new(bridge_associated, false),
@@ -472,14 +498,18 @@ pub fn withdraw_nft(
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
+            AccountMeta::new_readonly(mpl_token_metadata::id(), false),
             AccountMeta::new_readonly(spl_associated_token_account::id(), false),
         ],
         data: BridgeInstruction::WithdrawNFT(WithdrawArgs {
-            content,
+            origin,
+            amount,
             signature,
+            recovery_id,
             path,
-            root,
             seeds,
+            token_seed,
+            signed_meta,
         }).try_to_vec().unwrap(),
     }
-}*/
+}
