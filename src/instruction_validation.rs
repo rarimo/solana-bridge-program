@@ -1,7 +1,8 @@
-use crate::instruction::{DepositFTArgs, DepositNativeArgs, DepositNFTArgs, WithdrawArgs, MintCollectionArgs, SignedMetadata};
 use solana_program::entrypoint::ProgramResult;
-use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE, MAX_TOKEN_ID_SIZE, MAX_TX_SIZE};
+
 use crate::error::BridgeError;
+use crate::instruction::{DepositFTArgs, DepositNativeArgs, DepositNFTArgs, MintCollectionArgs, SignedMetadata, WithdrawArgs};
+use crate::state::{MAX_ADDRESS_SIZE, MAX_NETWORKS_SIZE, MAX_TOKEN_ID_SIZE, MAX_TX_SIZE};
 
 impl DepositNativeArgs {
     pub fn validate(&self) -> ProgramResult {

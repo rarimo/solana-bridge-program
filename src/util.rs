@@ -1,12 +1,14 @@
-use crate::error::BridgeError;
-use solana_program::{
-    hash, msg,
-    entrypoint::ProgramResult,
-};
-use crate::merkle::ContentNode;
-use solana_program::secp256k1_recover::{secp256k1_recover, Secp256k1Pubkey, SECP256K1_PUBLIC_KEY_LENGTH};
-use solana_program::program_error::ProgramError;
 use std::hash::Hash;
+
+use solana_program::{
+    entrypoint::ProgramResult, hash,
+    msg,
+};
+use solana_program::program_error::ProgramError;
+use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, secp256k1_recover, Secp256k1Pubkey};
+
+use crate::error::BridgeError;
+use crate::merkle::ContentNode;
 
 pub(crate) fn verify_ecdsa_signature(hash: &[u8], sig: &[u8], reid: u8, target_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH]) -> ProgramResult {
     let recovered_key = secp256k1_recover(hash, reid, sig);

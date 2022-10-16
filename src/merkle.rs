@@ -1,101 +1,68 @@
-use solana_program::{
-    pubkey::Pubkey,
-    msg,
-};
 use std::hash::Hash;
+
+use solana_program::{
+    msg,
+    pubkey::Pubkey,
+};
 
 const SOLANA_NETWORK: &str = "Solana";
 const SOLANA_NATIVE_DECIMALS: u8 = 9u8;
 
-pub trait Operation {
+pub trait Data {
     fn get_operation(&self) -> Vec<u8>;
 }
 
-pub struct TransferFullMetaOperation {
+pub struct TransferData {
     // Empty line if is native
     pub address_to: Option<[u8; 32]>,
     // Empty line if is native or fungible
     pub token_id_to: Option<[u8; 32]>,
-    pub amount: u64,
-    pub name: String,
-    pub symbol: String,
-    pub uri: String,
-    pub decimals: u8,
+    pub amount: Option<u64>,
+    pub name: Option<String>,
+    pub symbol: Option<String>,
+    pub uri: Option<String>,
+    pub decimals: Option<u8>,
 }
 
-impl TransferFullMetaOperation {
+impl TransferData {
     pub fn new_ft_transfer(mint: [u8; 32], amount: u64, name: String, symbol: String, uri: String, decimals: u8) -> Self {
-        TransferFullMetaOperation {
+        TransferData {
             address_to: Some(mint),
             token_id_to: None,
-            amount,
-            name,
-            symbol,
-            uri,
-            decimals,
+            amount: Some(amount),
+            name: Some(name),
+            symbol: Some(symbol),
+            uri: Some(uri),
+            decimals: Some(decimals),
         }
     }
 
     pub fn new_nft_transfer(mint: [u8; 32], collection: Option<[u8; 32]>, name: String, symbol: String, uri: String) -> Self {
-        TransferFullMetaOperation {
+        TransferData {
             address_to: collection,
             token_id_to: Some(mint),
-            amount: 1,
-            name,
-            symbol,
-            uri,
-            decimals: 0,
+            amount: None,
+            name: Some(name),
+            symbol: Some(symbol),
+            uri: Some(uri),
+            decimals: None,
         }
     }
-}
 
-impl Operation for TransferFullMetaOperation {
-    fn get_operation(&self) -> Vec<u8> {
-        let mut data = Vec::new();
-
-        if let Some(val) = self.address_to {
-            data.append(&mut Vec::from(val.as_slice()));
-        }
-
-        data.append(&mut Vec::from(self.name.as_bytes()));
-
-        if let Some(val) = self.token_id_to {
-            data.append(&mut Vec::from(val.as_slice()));
-        }
-
-        data.append(&mut Vec::from(self.symbol.as_bytes()));
-
-        data.append(&mut Vec::from(amount_bytes(self.amount)));
-
-        data.append(&mut Vec::from(self.uri.as_bytes()));
-
-        data.append(&mut Vec::from(amount_bytes(self.decimals as u64)));
-        data
-    }
-}
-
-
-pub struct TransferOperation {
-    // Empty line if is native
-    pub address_to: Option<[u8; 32]>,
-    // Empty line if is native or fungible
-    pub token_id_to: Option<[u8; 32]>,
-    pub amount: u64,
-    pub uri: String,
-}
-
-impl TransferOperation {
     pub fn new_native_transfer(amount: u64) -> Self {
-        TransferOperation {
+        TransferData {
+            amount: Some(amount),
             address_to: None,
             token_id_to: None,
-            amount,
-            uri: "".to_string(),
+            name: None,
+            symbol: None,
+            uri: None,
+            decimals: None,
         }
     }
 }
 
-impl Operation for TransferOperation {
+impl Data for TransferData {
     fn get_operation(&self) -> Vec<u8> {
         let mut data = Vec::new();
 
@@ -103,13 +70,30 @@ impl Operation for TransferOperation {
             data.append(&mut Vec::from(val.as_slice()));
         }
 
+        if let Some(val) = &self.name {
+            data.append(&mut Vec::from(val.as_bytes()));
+        }
+
         if let Some(val) = self.token_id_to {
             data.append(&mut Vec::from(val.as_slice()));
         }
 
-        data.append(&mut Vec::from(self.uri.as_bytes()));
+        if let Some(val) = &self.uri {
+            data.append(&mut Vec::from(val.as_bytes()));
+        }
 
-        data.append(&mut Vec::from(amount_bytes(self.amount)));
+        if let Some(val) = self.amount {
+            data.append(&mut Vec::from(amount_bytes(val)));
+        }
+
+        if let Some(val) = &self.symbol {
+            data.append(&mut Vec::from(val.as_bytes()));
+        }
+
+        if let Some(val) = self.decimals {
+            data.push(val);
+        }
+
         data
     }
 }
