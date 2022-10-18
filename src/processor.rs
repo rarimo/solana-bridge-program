@@ -1,34 +1,36 @@
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    entrypoint::ProgramResult, msg, program::{invoke, invoke_signed},
-    pubkey::Pubkey, sysvar::{rent::Rent, Sysvar}, hash, system_instruction,
-    secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH},
-};
-use spl_token::{
-    instruction::{transfer, initialize_mint, mint_to},
-    solana_program::program_pack::Pack,
-    state::{Mint},
-};
-use spl_associated_token_account::{get_associated_token_address, create_associated_token_account};
-use mpl_token_metadata::{
-    state::{DataV2, TokenStandard},
-    instruction::{create_metadata_accounts_v2, verify_collection, create_master_edition_v3},
-};
+use std::cmp::max;
+
 use borsh::{
     BorshDeserialize, BorshSerialize,
 };
-use crate::{
-    instruction::BridgeInstruction,
-    state::{BridgeAdmin, BRIDGE_ADMIN_SIZE, TokenType::{NFT, FT, Native}},
-    error::BridgeError,
-    state::{WITHDRAW_SIZE, Withdraw},
-    util::{verify_ecdsa_signature, get_merkle_root},
-    merkle::ContentNode,
+use mpl_token_metadata::{
+    instruction::{create_master_edition_v3, create_metadata_accounts_v2, verify_collection},
+    state::{DataV2, TokenStandard},
 };
-use crate::merkle::{TransferOperation, Operation, TransferFullMetaOperation};
-use crate::instruction::SignedMetadata;
-use std::cmp::max;
+use solana_program::{
+    account_info::{AccountInfo, next_account_info},
+    entrypoint::ProgramResult, hash, msg,
+    program::{invoke, invoke_signed}, pubkey::Pubkey, secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH}, system_instruction,
+    sysvar::{rent::Rent, Sysvar},
+};
+use spl_associated_token_account::{create_associated_token_account, get_associated_token_address};
+use spl_token::{
+    instruction::{initialize_mint, mint_to, transfer},
+    solana_program::program_pack::Pack,
+    state::Mint,
+};
 use spl_token::instruction::burn;
+
+use crate::{
+    error::BridgeError,
+    instruction::BridgeInstruction,
+    merkle::ContentNode,
+    state::{BRIDGE_ADMIN_SIZE, BridgeAdmin, TokenType::{FT, Native, NFT}},
+    state::{Withdraw, WITHDRAW_SIZE},
+    util::{get_merkle_root, verify_ecdsa_signature},
+};
+use crate::instruction::SignedMetadata;
+use crate::merkle::{Data, TransferData};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -386,7 +388,7 @@ pub fn process_withdraw_native<'a>(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferOperation::new_native_transfer(
+        TransferData::new_native_transfer(
             amount,
         ).get_operation(),
     );
@@ -502,7 +504,7 @@ pub fn process_withdraw_ft<'a>(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferFullMetaOperation::new_ft_transfer(
+        TransferData::new_ft_transfer(
             mint_info.key.to_bytes(),
             amount,
             metadata.data.name.trim_matches(char::from(0)).to_string(),
@@ -677,7 +679,7 @@ pub fn process_withdraw_nft<'a>(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferFullMetaOperation::new_nft_transfer(
+        TransferData::new_nft_transfer(
             mint_info.key.to_bytes(),
             collection,
             metadata.data.name.trim_matches(char::from(0)).to_string(),

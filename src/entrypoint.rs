@@ -1,13 +1,14 @@
 use solana_program::{
-    account_info::{AccountInfo},
-    entrypoint,
+    account_info::AccountInfo,
     declare_id,
-    entrypoint::{ProgramResult},
+    entrypoint,
+    entrypoint::ProgramResult,
     pubkey::Pubkey,
 };
-use crate::{processor};
-use crate::error::BridgeError;
 use solana_program::program_error::PrintProgramError;
+
+use crate::processor;
+use crate::error::BridgeError;
 
 declare_id!("GexDbBi7B2UrJDi9JkrWH9fFVhmysN7u5C9zT2HkC6yZ");
 entrypoint!(process_instruction);

@@ -1,8 +1,8 @@
-use solana_program::pubkey::Pubkey;
-use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
 use std::mem::size_of;
 
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::pubkey::Pubkey;
+use solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
 
 pub const MAX_NETWORKS_SIZE: usize = 20;
 pub const MAX_ADDRESS_SIZE: usize = 100;
