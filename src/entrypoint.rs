@@ -10,7 +10,7 @@ use solana_program::program_error::PrintProgramError;
 use crate::processor;
 use crate::error::BridgeError;
 
-declare_id!("GexDbBi7B2UrJDi9JkrWH9fFVhmysN7u5C9zT2HkC6yZ");
+declare_id!("8RuX2EomaZj5xiEyU78XpDWRRp5wou4QNckHnkYX2Fgs");
 entrypoint!(process_instruction);
 
 fn process_instruction<'a>(
