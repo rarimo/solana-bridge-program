@@ -212,6 +212,7 @@ pub enum BridgeInstruction {
     ///   9. `[]` Rent sysvar
     ///   10. `[]` Metadata program
     ///   11. `[]` Associated token program
+    ///   12. `[]` Collection metadata account (Optional)
     WithdrawNFT(WithdrawArgs),
 
     /// Create collection NFT owned by brisge
@@ -417,7 +418,7 @@ pub fn withdraw_native(
             path,
             seeds,
             token_seed,
-            signed_meta
+            signed_meta,
         }).try_to_vec().unwrap(),
     }
 }
