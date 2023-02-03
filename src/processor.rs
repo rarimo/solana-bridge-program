@@ -664,16 +664,29 @@ pub fn process_withdraw_nft<'a>(
         )?;
     }
 
-
     let metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut metadata_info.data.borrow_mut().as_ref())?;
 
-    let mut collection: Option<[u8; 32]> = {
-        if metadata.collection.is_some() {
-            Some(metadata.collection.unwrap().key.to_bytes())
-        } else {
-            None
+    // Default metadata - from token
+    let mut name = metadata.data.name;
+    let mut symbol = metadata.data.symbol;
+    let mut uri = metadata.data.uri;
+
+    let mut collection: Option<[u8; 32]> = None;
+
+    if metadata.collection.is_some() {
+        let collection_key = metadata.collection.unwrap().key;
+
+        let collection_metadata_info = next_account_info(account_info_iter)?;
+        if *collection_metadata_info.key != mpl_token_metadata::pda::find_metadata_account(&collection_key).0 {
+            return Err(BridgeError::WrongMetadataAccount.into());
         }
-    };
+
+        // If collection exists, use its metadata (name and symbol) instead of token metadata
+        let collection_metadata: mpl_token_metadata::state::Metadata = BorshDeserialize::deserialize(&mut collection_metadata_info.data.borrow_mut().as_ref())?;
+        name = collection_metadata.data.name;
+        symbol = collection_metadata.data.symbol;
+        collection = Some(collection_key.to_bytes())
+    }
 
     let content = ContentNode::new(
         origin,
@@ -682,9 +695,9 @@ pub fn process_withdraw_nft<'a>(
         TransferData::new_nft_transfer(
             mint_info.key.to_bytes(),
             collection,
-            metadata.data.name.trim_matches(char::from(0)).to_string(),
-            metadata.data.symbol.trim_matches(char::from(0)).to_string(),
-            metadata.data.uri.trim_matches(char::from(0)).to_string(),
+            name.trim_matches(char::from(0)).to_string(),
+            symbol.trim_matches(char::from(0)).to_string(),
+            uri.trim_matches(char::from(0)).to_string(),
         ).get_operation(),
     );
 
@@ -1099,46 +1112,6 @@ fn call_init_mint<'a>(
             mint.clone(),
             rent.clone(),
         ],
-    )
-}
-
-fn call_create_master_edition<'a>(
-    edition: &AccountInfo<'a>,
-    mint: &AccountInfo<'a>,
-    update_authority: &AccountInfo<'a>,
-    mint_authority: &AccountInfo<'a>,
-    metadata: &AccountInfo<'a>,
-    payer: &AccountInfo<'a>,
-    token_program: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    rent: &AccountInfo<'a>,
-    seeds: [u8; 32],
-) -> ProgramResult {
-    let create_master_edition_instruction = create_master_edition_v3(
-        mpl_token_metadata::id(),
-        *edition.key,
-        *mint.key,
-        *update_authority.key,
-        *mint_authority.key,
-        *metadata.key,
-        *payer.key,
-        Some(0),
-    );
-
-    invoke_signed(
-        &create_master_edition_instruction,
-        &[
-            edition.clone(),
-            mint.clone(),
-            update_authority.clone(),
-            mint_authority.clone(),
-            payer.clone(),
-            metadata.clone(),
-            token_program.clone(),
-            system_program.clone(),
-            rent.clone(),
-        ],
-        &[&[&seeds]],
     )
 }
 
