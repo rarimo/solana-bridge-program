@@ -374,7 +374,7 @@ pub fn process_withdraw_native<'a>(
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
         return Err(BridgeError::WrongSeeds.into());
     }
@@ -467,7 +467,7 @@ pub fn process_withdraw_ft<'a>(
     let _metadata_program = next_account_info(account_info_iter)?;
     let _associated_program = next_account_info(account_info_iter)?;
 
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
         return Err(BridgeError::WrongSeeds.into());
     }
@@ -635,7 +635,7 @@ pub fn process_withdraw_nft<'a>(
     let _metadata_program = next_account_info(account_info_iter)?;
     let _associated_program = next_account_info(account_info_iter)?;
 
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
         return Err(BridgeError::WrongSeeds.into());
     }
@@ -816,7 +816,7 @@ pub fn process_create_collection<'a>(
     let system_program = next_account_info(account_info_iter)?;
     let _associated_program = next_account_info(account_info_iter)?;
 
-    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id).unwrap();
+    let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
         return Err(BridgeError::WrongSeeds.into());
     }
