@@ -8,3 +8,4 @@ pub mod error;
 mod util;
 mod instruction_validation;
 mod merkle;
+mod commission;
