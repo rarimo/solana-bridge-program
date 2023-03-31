@@ -135,6 +135,7 @@ pub enum BridgeInstruction {
     ///   1. `[writable,signer]` The owner account
     ///   2. `[]` System program
     ///   3. `[]` Rent sysvar
+    ///   5. `[]` Sysvar
     DepositNative(DepositNativeArgs),
 
     /// Make FT deposit on bridge.
@@ -149,7 +150,8 @@ pub enum BridgeInstruction {
     ///   5. `[]` Token program id
     ///   6. `[]` System program
     ///   7. `[]` Rent sysvar
-    ///   8. `[]` Associated token program
+    ///   8. `[]` Sysvar
+    ///   9. `[]` Associated token program
     DepositFT(DepositFTArgs),
 
     /// Make NFT deposit on bridge.
@@ -164,7 +166,8 @@ pub enum BridgeInstruction {
     ///   5. `[]` Token program id
     ///   6. `[]` System program
     ///   7. `[]` Rent sysvar
-    ///   8. `[]` Associated token program
+    ///   8. `[]` Sysvar
+    ///   9. `[]` Associated token program
     DepositNFT(DepositNFTArgs),
 
     /// Make NFT withdraw from bridge.

@@ -1,15 +1,12 @@
 {
-  "name": "solana-bridge-program",
+  "name": "solana-commission-program",
   "version": "0.0.1",
   "description": "",
   "scripts": {
-    "build:bridge": "cargo build-bpf --manifest-path=./bridge/program/Cargo.toml --bpf-out-dir=./dist/program",
-    "clean:bridge": "cargo clean --manifest-path=./bridge/program/Cargo.toml && rm -rf ./dist",
-    "test:bridge": "cargo test-bpf --manifest-path=./bridge/program/Cargo.toml",
-
-    "build:commission": "cargo build-bpf --manifest-path=./commission/program/Cargo.toml --bpf-out-dir=./dist/program",
-    "clean:commission": "cargo clean --manifest-path=./commission/program/Cargo.toml && rm -rf ./dist",
-    "test:commission": "cargo test-bpf --manifest-path=./commission/program/Cargo.toml"
+    "clean": "npm run clean:program-rust",
+    "build:program-rust": "cargo build-bpf --manifest-path=./Cargo.toml --bpf-out-dir=./dist/program",
+    "clean:program-rust": "cargo clean --manifest-path=./Cargo.toml && rm -rf ./dist",
+    "test:program-rust": "cargo test-bpf --manifest-path=./Cargo.toml"
   },
   "dependencies": {
     "@solana/web3.js": "^1.7.0",

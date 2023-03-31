@@ -85,6 +85,15 @@ pub enum BridgeError {
     /// 25 Uninitialized mint
     #[error("Uninitialized mint")]
     UninitializedMint,
+    /// 26 Wrong commission program
+    #[error("Wrong commission program")]
+    WrongCommissionProgram,
+    /// 27 Wrong commission deposit arguments
+    #[error("Wrong commission deposit arguments")]
+    WrongCommissionArguments,
+    /// 28 Wrong commission account
+    #[error("Wrong commission account")]
+    WrongCommissionAccount,
 }
 
 

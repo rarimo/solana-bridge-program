@@ -25,12 +25,13 @@ use crate::{
     error::BridgeError,
     instruction::BridgeInstruction,
     merkle::ContentNode,
-    state::{BRIDGE_ADMIN_SIZE, BridgeAdmin, TokenType::{FT, Native, NFT}},
+    state::{BRIDGE_ADMIN_SIZE, BridgeAdmin},
     state::{Withdraw, WITHDRAW_SIZE},
     util::{get_merkle_root, verify_ecdsa_signature},
 };
 use crate::instruction::SignedMetadata;
 use crate::merkle::{Data, TransferData};
+use solana_program::sysvar::instructions::{load_current_index_checked, load_instruction_at_checked};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -172,6 +173,7 @@ pub fn process_deposit_native<'a>(
     let owner_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
+    let sysvar_info = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
@@ -182,6 +184,8 @@ pub fn process_deposit_native<'a>(
     if !bridge_admin.is_initialized {
         return Err(BridgeError::NotInitialized.into());
     }
+
+    verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
 
     let transfer_tokens_instruction = solana_program::system_instruction::transfer(
         owner_info.key,
@@ -221,6 +225,7 @@ pub fn process_deposit_ft<'a>(
     let token_program = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
+    let sysvar_info = next_account_info(account_info_iter)?;
     let _associated_program = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
@@ -232,6 +237,8 @@ pub fn process_deposit_ft<'a>(
     if !bridge_admin.is_initialized {
         return Err(BridgeError::NotInitialized.into());
     }
+
+    verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -298,6 +305,7 @@ pub fn process_deposit_nft<'a>(
     let token_program = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
+    let sysvar_info = next_account_info(account_info_iter)?;
     let _associated_program = next_account_info(account_info_iter)?;
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
@@ -309,6 +317,8 @@ pub fn process_deposit_nft<'a>(
     if !bridge_admin.is_initialized {
         return Err(BridgeError::NotInitialized.into());
     }
+
+    verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, 1)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -429,7 +439,7 @@ pub fn process_withdraw_native<'a>(
     }
 
     withdraw.is_initialized = true;
-    withdraw.token_type = Native;
+    withdraw.token_type = lib::TokenType::Native;
     withdraw.origin = origin;
     withdraw.mint = Option::None;
     withdraw.amount = amount;
@@ -598,7 +608,7 @@ pub fn process_withdraw_ft<'a>(
     }
 
     withdraw.is_initialized = true;
-    withdraw.token_type = FT;
+    withdraw.token_type = lib::TokenType::FT;
     withdraw.origin = origin;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = amount;
@@ -784,7 +794,7 @@ pub fn process_withdraw_nft<'a>(
     }
 
     withdraw.is_initialized = true;
-    withdraw.token_type = NFT;
+    withdraw.token_type = lib::TokenType::NFT;
     withdraw.origin = origin;
     withdraw.mint = Option::Some(mint_info.key.clone());
     withdraw.amount = 1;
@@ -792,6 +802,37 @@ pub fn process_withdraw_nft<'a>(
     withdraw.serialize(&mut *withdraw_info.data.borrow_mut())?;
     msg!("Withdraw account created");
     Ok(())
+}
+
+pub fn verify_commission_charged<'a>(
+    program_id: &'a Pubkey,
+    bridge_admin_info: &AccountInfo<'a>,
+    sysvar_info: &AccountInfo<'a>,
+    admin: &BridgeAdmin,
+    token: lib::TokenType,
+    amount: u64,
+) -> ProgramResult {
+    let current_index = load_current_index_checked(sysvar_info)?;
+    let commission_instruction = load_instruction_at_checked((current_index - 1) as usize, sysvar_info)?;
+
+    if commission_instruction.program_id != admin.commission_program {
+        return Err(BridgeError::WrongCommissionProgram.into());
+    }
+
+    let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
+    if commission_key != commission_instruction.accounts[0].pubkey {
+        return Err(BridgeError::WrongCommissionAccount.into());
+    }
+
+    let instruction = commission::instruction::CommissionInstruction::try_from_slice(commission_instruction.data.as_slice())?;
+
+    if let commission::instruction::CommissionInstruction::ChargeCommission(args) = instruction {
+        if args.deposit_token == token && args.deposit_token_amount == amount {
+            return Ok(())
+        }
+    }
+
+    return Err(BridgeError::WrongCommissionArguments.into());
 }
 
 pub fn process_create_collection<'a>(
