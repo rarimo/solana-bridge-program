@@ -5,7 +5,7 @@ pub mod instruction;
 pub mod entrypoint;
 pub mod processor;
 pub mod error;
+pub mod commission;
 mod util;
 mod instruction_validation;
 mod merkle;
-mod commission;
