@@ -23,7 +23,7 @@ fn process_instruction<'a>(
         Ok(()) => Ok(()),
         Err(e) => {
             // catch the error so we can print it
-            e.print::<CommissionError>();
+            e.print();
             return Err(e);
         }
     }

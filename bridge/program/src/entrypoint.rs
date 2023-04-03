@@ -23,8 +23,7 @@ fn process_instruction<'a>(
     match processor::process_instruction(program_id, accounts, instruction_data) {
         Ok(()) => Ok(()),
         Err(e) => {
-            // catch the error so we can print it
-            e.print::<BridgeError>();
+            e.print();
             return Err(e);
         }
     }
