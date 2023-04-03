@@ -1675,8 +1675,11 @@ name = "solana-bridge-lib"
 version = "0.0.1"
 dependencies = [
  "borsh",
+ "num-derive",
+ "num-traits",
  "solana-program",
  "solana-sdk",
+ "thiserror",
 ]
 
 [[package]]

@@ -24,14 +24,14 @@ use spl_token::instruction::burn;
 use crate::{
     error::BridgeError,
     instruction::BridgeInstruction,
-    merkle::ContentNode,
     state::{BRIDGE_ADMIN_SIZE, BridgeAdmin},
     state::{Withdraw, WITHDRAW_SIZE},
-    util::{get_merkle_root, verify_ecdsa_signature},
 };
 use crate::instruction::SignedMetadata;
 use crate::merkle::{Data, TransferData};
 use solana_program::sysvar::instructions::{load_current_index_checked, load_instruction_at_checked};
+use lib::merkle::{ContentNode, get_merkle_root};
+use lib::ecdsa::verify_ecdsa_signature;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,

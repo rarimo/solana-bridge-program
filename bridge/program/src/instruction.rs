@@ -9,7 +9,6 @@ use solana_program::{
 use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH};
 use spl_associated_token_account::get_associated_token_address;
 
-use crate::util;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]

@@ -42,6 +42,6 @@ impl PrintProgramError for CommissionError {
 
 impl<T> DecodeError<T> for CommissionError {
     fn type_of() -> &'static str {
-        "BridgeError"
+        "CommissionError"
     }
 }

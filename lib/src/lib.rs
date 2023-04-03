@@ -1,3 +1,7 @@
+pub mod merkle;
+pub mod ecdsa;
+mod error;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::pubkey::Pubkey;
 
