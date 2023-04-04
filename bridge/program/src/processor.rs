@@ -22,16 +22,16 @@ use spl_token::{
 use spl_token::instruction::burn;
 
 use crate::{
-    error::BridgeError,
-    instruction::BridgeInstruction,
-    state::{BRIDGE_ADMIN_SIZE, BridgeAdmin},
-    state::{Withdraw, WITHDRAW_SIZE},
+    state::BridgeAdmin,
+    state::Withdraw,
 };
-use crate::instruction::SignedMetadata;
 use crate::merkle::{Data, TransferData};
 use solana_program::sysvar::instructions::{load_current_index_checked, load_instruction_at_checked};
 use lib::merkle::{ContentNode, get_merkle_root};
 use lib::ecdsa::verify_ecdsa_signature;
+use lib::instructions::bridge::{BridgeInstruction, BRIDGE_ADMIN_SIZE, WITHDRAW_SIZE, SignedMetadata};
+use lib::instructions::InstructionValidation;
+use lib::error::LibError;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -105,7 +105,7 @@ pub fn process_init_admin<'a>(
 
     let bridge_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if bridge_key != *bridge_admin_info.key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     call_create_account(
@@ -120,7 +120,7 @@ pub fn process_init_admin<'a>(
 
     let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if bridge_admin.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
+        return Err(LibError::AlreadyInUse.into());
     }
 
     bridge_admin.public_key = public_key;
@@ -142,12 +142,12 @@ pub fn process_transfer_ownership<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if bridge_admin_key != *bridge_admin_info.key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let mut bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
 
@@ -177,12 +177,12 @@ pub fn process_deposit_native<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
@@ -230,19 +230,19 @@ pub fn process_deposit_ft<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
+        return Err(LibError::WrongTokenAccount.into());
     }
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
@@ -262,7 +262,7 @@ pub fn process_deposit_ft<'a>(
     if let Some(token_seed) = token_seed {
         let (mint_key, _) = Pubkey::find_program_address(&[token_seed.as_slice()], program_id);
         if mint_key != *mint_info.key {
-            return Err(BridgeError::WrongTokenSeed.into());
+            return Err(LibError::WrongTokenSeed.into());
         }
 
         msg!("Burning token");
@@ -310,19 +310,19 @@ pub fn process_deposit_nft<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, 1)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
+        return Err(LibError::WrongTokenAccount.into());
     }
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
@@ -341,7 +341,7 @@ pub fn process_deposit_nft<'a>(
     if let Some(token_seed) = token_seed {
         let (mint_key, _) = Pubkey::find_program_address(&[token_seed.as_slice()], program_id);
         if mint_key != *mint_info.key {
-            return Err(BridgeError::WrongTokenSeed.into());
+            return Err(LibError::WrongTokenSeed.into());
         }
 
         msg!("Burning token");
@@ -386,21 +386,23 @@ pub fn process_withdraw_native<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     let content = ContentNode::new(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferData::new_native_transfer(
-            amount,
-        ).get_operation(),
+        Box::new(
+            TransferData::new_native_transfer(
+                amount,
+            ),
+        ),
     );
     let root = get_merkle_root(content, &path)?;
 
@@ -408,12 +410,12 @@ pub fn process_withdraw_native<'a>(
 
     // TODO check rent
     if **bridge_admin_info.try_borrow_lamports()? < amount {
-        return Err(BridgeError::WrongBalance.into());
+        return Err(LibError::WrongBalance.into());
     }
 
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
     if withdraw_key != *withdraw_info.key {
-        return Err(BridgeError::WrongNonce.into());
+        return Err(LibError::WrongNonce.into());
     }
 
     // Need to do that before transferring SOls
@@ -435,7 +437,7 @@ pub fn process_withdraw_native<'a>(
     msg!("Initializing withdraw account");
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
+        return Err(LibError::AlreadyInUse.into());
     }
 
     withdraw.is_initialized = true;
@@ -479,16 +481,16 @@ pub fn process_withdraw_ft<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     if *metadata_info.key != mpl_token_metadata::pda::find_metadata_account(mint_info.key).0 {
-        return Err(BridgeError::WrongMetadataAccount.into());
+        return Err(LibError::WrongMetadataAccount.into());
     }
 
     if let Some(token_seed) = token_seed {
@@ -514,21 +516,23 @@ pub fn process_withdraw_ft<'a>(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferData::new_ft_transfer(
-            mint_info.key.to_bytes(),
-            amount,
-            metadata.data.name.trim_matches(char::from(0)).to_string(),
-            metadata.data.symbol.trim_matches(char::from(0)).to_string(),
-            metadata.data.uri.trim_matches(char::from(0)).to_string(),
-            mint.decimals,
-        ).get_operation(),
+        Box::new(
+            TransferData::new_ft_transfer(
+                mint_info.key.to_bytes(),
+                amount,
+                metadata.data.name.trim_matches(char::from(0)).to_string(),
+                metadata.data.symbol.trim_matches(char::from(0)).to_string(),
+                metadata.data.uri.trim_matches(char::from(0)).to_string(),
+                mint.decimals,
+            ),
+        ),
     );
 
     verify_ecdsa_signature(get_merkle_root(content, &path)?.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
+        return Err(LibError::WrongTokenAccount.into());
     }
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
@@ -548,7 +552,7 @@ pub fn process_withdraw_ft<'a>(
 
     if *owner_associated_info.key !=
         get_associated_token_address(&owner_info.key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
+        return Err(LibError::WrongTokenAccount.into());
     }
 
     if owner_associated_info.data.borrow().as_ref().len() == 0 {
@@ -587,7 +591,7 @@ pub fn process_withdraw_ft<'a>(
 
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
     if withdraw_key != *withdraw_info.key {
-        return Err(BridgeError::WrongNonce.into());
+        return Err(LibError::WrongNonce.into());
     }
 
     msg!("Creating withdraw account");
@@ -604,7 +608,7 @@ pub fn process_withdraw_ft<'a>(
     msg!("Initializing withdraw account");
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
+        return Err(LibError::AlreadyInUse.into());
     }
 
     withdraw.is_initialized = true;
@@ -647,16 +651,16 @@ pub fn process_withdraw_nft<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     if *metadata_info.key != mpl_token_metadata::pda::find_metadata_account(mint_info.key).0 {
-        return Err(BridgeError::WrongMetadataAccount.into());
+        return Err(LibError::WrongMetadataAccount.into());
     }
 
     if let Some(token_seed) = token_seed {
@@ -688,7 +692,7 @@ pub fn process_withdraw_nft<'a>(
 
         let collection_metadata_info = next_account_info(account_info_iter)?;
         if *collection_metadata_info.key != mpl_token_metadata::pda::find_metadata_account(&collection_key).0 {
-            return Err(BridgeError::WrongMetadataAccount.into());
+            return Err(LibError::WrongMetadataAccount.into());
         }
 
         // If collection exists, use its metadata (name and symbol) instead of token metadata
@@ -702,20 +706,22 @@ pub fn process_withdraw_nft<'a>(
         origin,
         owner_info.key.to_bytes(),
         program_id.to_bytes(),
-        TransferData::new_nft_transfer(
-            mint_info.key.to_bytes(),
-            collection,
-            name.trim_matches(char::from(0)).to_string(),
-            symbol.trim_matches(char::from(0)).to_string(),
-            uri.trim_matches(char::from(0)).to_string(),
-        ).get_operation(),
+        Box::new(
+            TransferData::new_nft_transfer(
+                mint_info.key.to_bytes(),
+                collection,
+                name.trim_matches(char::from(0)).to_string(),
+                symbol.trim_matches(char::from(0)).to_string(),
+                uri.trim_matches(char::from(0)).to_string(),
+            )
+        ),
     );
 
     verify_ecdsa_signature(get_merkle_root(content, &path)?.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
+        return Err(LibError::WrongTokenAccount.into());
     }
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
@@ -735,7 +741,7 @@ pub fn process_withdraw_nft<'a>(
 
     if *owner_associated_info.key !=
         get_associated_token_address(&owner_info.key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
+        return Err(LibError::WrongTokenAccount.into());
     }
 
     if owner_associated_info.data.borrow().as_ref().len() == 0 {
@@ -773,7 +779,7 @@ pub fn process_withdraw_nft<'a>(
 
     let (withdraw_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
     if withdraw_key != *withdraw_info.key {
-        return Err(BridgeError::WrongNonce.into());
+        return Err(LibError::WrongNonce.into());
     }
 
     msg!("Creating withdraw account");
@@ -790,7 +796,7 @@ pub fn process_withdraw_nft<'a>(
     msg!("Initializing withdraw account");
     let mut withdraw: Withdraw = BorshDeserialize::deserialize(&mut withdraw_info.data.borrow_mut().as_ref())?;
     if withdraw.is_initialized {
-        return Err(BridgeError::AlreadyInUse.into());
+        return Err(LibError::AlreadyInUse.into());
     }
 
     withdraw.is_initialized = true;
@@ -816,23 +822,23 @@ pub fn verify_commission_charged<'a>(
     let commission_instruction = load_instruction_at_checked((current_index - 1) as usize, sysvar_info)?;
 
     if commission_instruction.program_id != admin.commission_program {
-        return Err(BridgeError::WrongCommissionProgram.into());
+        return Err(LibError::WrongCommissionProgram.into());
     }
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != commission_instruction.accounts[0].pubkey {
-        return Err(BridgeError::WrongCommissionAccount.into());
+        return Err(LibError::WrongCommissionAccount.into());
     }
 
-    let instruction = commission::instruction::CommissionInstruction::try_from_slice(commission_instruction.data.as_slice())?;
+    let instruction = lib::instructions::commission::CommissionInstruction::try_from_slice(commission_instruction.data.as_slice())?;
 
-    if let commission::instruction::CommissionInstruction::ChargeCommission(args) = instruction {
+    if let lib::instructions::commission::CommissionInstruction::ChargeCommission(args) = instruction {
         if args.deposit_token == token && args.deposit_token_amount == amount {
-            return Ok(())
+            return Ok(());
         }
     }
 
-    return Err(BridgeError::WrongCommissionArguments.into());
+    return Err(LibError::WrongCommissionArguments.into());
 }
 
 pub fn process_create_collection<'a>(
@@ -859,22 +865,22 @@ pub fn process_create_collection<'a>(
 
     let bridge_admin_key = Pubkey::create_program_address(&[&seeds], &program_id)?;
     if *bridge_admin_info.key != bridge_admin_key {
-        return Err(BridgeError::WrongSeeds.into());
+        return Err(LibError::WrongSeeds.into());
     }
 
     let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
     if !bridge_admin.is_initialized {
-        return Err(BridgeError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
-        return Err(BridgeError::WrongTokenAccount.into());
+        return Err(LibError::WrongTokenAccount.into());
     }
 
     let (mint_key, _) = Pubkey::find_program_address(&[token_seed.as_slice()], program_id);
     if mint_key != *mint_info.key {
-        return Err(BridgeError::WrongTokenSeed.into());
+        return Err(LibError::WrongTokenSeed.into());
     }
 
     msg!("Creating mint account");
@@ -946,15 +952,15 @@ fn try_mint_token_with_meta<'a>(
 ) -> ProgramResult {
     let (mint_key, bump_seed) = Pubkey::find_program_address(&[token_seed.as_slice()], program_id);
     if mint_key != *mint_info.key {
-        return Err(BridgeError::WrongTokenSeed.into());
+        return Err(LibError::WrongTokenSeed.into());
     }
 
     let signed_meta = {
         if signed_meta.is_none() {
-            return Err(BridgeError::NoTokenMeta.into());
+            return Err(LibError::NoTokenMeta.into());
         }
 
-        Ok::<SignedMetadata, BridgeError>(signed_meta.unwrap())
+        Ok::<SignedMetadata, LibError>(signed_meta.unwrap())
     }?;
 
     if mint_info.data.borrow().as_ref().len() == 0 {

@@ -2,6 +2,10 @@ use solana_program::program_error::ProgramError;
 
 const SOLANA_NETWORK: &str = "Solana";
 
+pub trait Data {
+    fn get_operation(&self) -> Vec<u8>;
+}
+
 pub struct ContentNode {
     pub origin: [u8; 32],
     pub network_to: String,
@@ -11,13 +15,13 @@ pub struct ContentNode {
 }
 
 impl ContentNode {
-    pub fn new(origin: [u8; 32], receiver: [u8; 32], program_id: [u8; 32], data: Vec<u8>) -> Self {
+    pub fn new(origin: [u8; 32], receiver: [u8; 32], program_id: [u8; 32], data: Box<dyn Data>) -> Self {
         ContentNode {
             origin,
             receiver,
             network_to: String::from(SOLANA_NETWORK),
             program_id,
-            data,
+            data: data.get_operation(),
         }
     }
 

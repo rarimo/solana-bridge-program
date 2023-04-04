@@ -4,15 +4,20 @@ use solana_program::{
     program::{invoke, invoke_signed}, pubkey::Pubkey, system_instruction,
     sysvar::{rent::Rent, Sysvar},
 };
-use crate::instruction::CommissionInstruction;
-use crate::state::{CommissionToken, MAX_TOKEN_SIZE, MAX_ADMIN_SIZE, CommissionAdmin};
-use crate::error::CommissionError;
+use crate::state::{CommissionToken, CommissionAdmin};
 use borsh::{
     BorshDeserialize, BorshSerialize,
 };
 use spl_token::instruction::transfer;
 use spl_associated_token_account::get_associated_token_address;
 use spl_associated_token_account::instruction::create_associated_token_account;
+use solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
+use lib::merkle::{ContentNode, get_merkle_root};
+use crate::merkle::CommissionTokenData;
+use lib::ecdsa::verify_ecdsa_signature;
+use lib::instructions::commission::{CommissionInstruction, CommissionTokenArg, MAX_ADMIN_SIZE};
+use lib::error::LibError;
+use bridge::state::BridgeAdmin;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -29,6 +34,18 @@ pub fn process_instruction<'a>(
             msg!("Instruction: Charge commission");
             process_charge_commission(program_id, accounts, args.token)
         }
+        CommissionInstruction::AddFeeToken(args) => {
+            msg!("Instruction: Add fee token");
+            process_add_token(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token)
+        }
+        CommissionInstruction::RemoveFeeToken(args) => {
+            msg!("Instruction: Remove fee token");
+            Ok(())
+        }
+        CommissionInstruction::UpdateFeeToken(args) => {
+            msg!("Instruction: Update fee token");
+            Ok(())
+        }
     }
 }
 
@@ -36,7 +53,7 @@ pub fn process_instruction<'a>(
 pub fn process_init_admin<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
-    acceptable_tokens: Vec<CommissionToken>,
+    acceptable_tokens: Vec<CommissionTokenArg>,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -49,7 +66,7 @@ pub fn process_init_admin<'a>(
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
-        return Err(CommissionError::WrongPDA.into());
+        return Err(LibError::WrongAdmin.into());
     }
 
     call_create_account(
@@ -64,10 +81,14 @@ pub fn process_init_admin<'a>(
 
     let mut commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
     if commission_admin.is_initialized {
-        return Err(CommissionError::AlreadyInUse.into());
+        return Err(LibError::AlreadyInUse.into());
     }
 
-    commission_admin.acceptable_tokens = acceptable_tokens;
+    commission_admin.acceptable_tokens = Vec::new();
+    for t in acceptable_tokens {
+        commission_admin.acceptable_tokens.push(CommissionToken::from(&t))
+    }
+
     commission_admin.is_initialized = true;
     commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
     Ok(())
@@ -90,12 +111,12 @@ pub fn process_charge_commission<'a>(
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
-        return Err(CommissionError::WrongPDA.into());
+        return Err(LibError::WrongAdmin.into());
     }
 
     let commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
     if !commission_admin.is_initialized {
-        return Err(CommissionError::NotInitialized.into());
+        return Err(LibError::NotInitialized.into());
     }
 
     let commission_token = check_token_is_acceptable(commission_admin.acceptable_tokens, token)?;
@@ -110,7 +131,7 @@ pub fn process_charge_commission<'a>(
 
             if *commission_associated_info.key !=
                 get_associated_token_address(&commission_key, &mint) {
-                return Err(CommissionError::WrongTokenAccount.into());
+                return Err(LibError::WrongTokenAccount.into());
             }
 
             if commission_associated_info.data.borrow().as_ref().len() == 0 {
@@ -135,9 +156,54 @@ pub fn process_charge_commission<'a>(
             )?;
         }
         lib::CommissionToken::NFT(mint) => {
-            return Err(CommissionError::NotSupported.into());
+            return Err(LibError::NotSupported.into());
         }
     }
+
+    Ok(())
+}
+
+
+pub fn process_add_token<'a>(
+    program_id: &'a Pubkey,
+    accounts: &'a [AccountInfo<'a>],
+    origin: [u8; 32],
+    signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    recovery_id: u8,
+    path: Vec<[u8; 32]>,
+    token: CommissionTokenArg,
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+
+    let commission_admin_info = next_account_info(account_info_iter)?;
+    let bridge_admin_info = next_account_info(account_info_iter)?;
+
+    let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
+    if commission_key != *commission_admin_info.key {
+        return Err(LibError::WrongAdmin.into());
+    }
+
+    let mut commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
+    if commission_admin.is_initialized {
+        return Err(LibError::NotInitialized.into());
+    }
+
+    let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
+    if !bridge_admin.is_initialized {
+        return Err(LibError::NotInitialized.into());
+    }
+
+    let content = ContentNode::new(
+        origin,
+        commission_admin_info.key.to_bytes(),
+        program_id.to_bytes(),
+        Box::new(
+            CommissionTokenData::new_data(CommissionToken::from(&token))
+        ),
+    );
+    let root = get_merkle_root(content, &path)?;
+    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
+
 
     Ok(())
 }
@@ -248,12 +314,12 @@ fn call_create_account<'a>(
     }
 }
 
-fn check_token_is_acceptable(list: Vec<CommissionToken>, token: lib::CommissionToken) -> Result<CommissionToken, CommissionError> {
+fn check_token_is_acceptable(list: Vec<CommissionToken>, token: lib::CommissionToken) -> Result<CommissionToken, LibError> {
     for l in list {
         if l.token == token {
             return Ok(l);
         }
     }
 
-    return Err(CommissionError::NotAcceptable.into())
+    return Err(LibError::NotAcceptable.into());
 }

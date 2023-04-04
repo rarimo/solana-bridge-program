@@ -4,14 +4,11 @@ use solana_program::{
     msg,
     pubkey::Pubkey,
 };
+
+pub use lib::merkle::Data;
 use lib::merkle::amount_bytes;
 
-const SOLANA_NETWORK: &str = "Solana";
 const SOLANA_NATIVE_DECIMALS: u8 = 9u8;
-
-pub trait Data {
-    fn get_operation(&self) -> Vec<u8>;
-}
 
 pub struct TransferData {
     // Empty line if is native

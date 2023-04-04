@@ -4,16 +4,16 @@ use solana_program::{
     msg,
 };
 use solana_program::program_error::ProgramError;
-use crate::error::ECDSAError;
+use crate::error::LibError;
 
 pub fn verify_ecdsa_signature(hash: &[u8], sig: &[u8], reid: u8, target_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH]) -> ProgramResult {
     let recovered_key = secp256k1_recover(hash, reid, sig);
     if recovered_key.is_err() {
-        return ProgramResult::Err(ECDSAError::InvalidSignature.into());
+        return ProgramResult::Err(LibError::InvalidSignature.into());
     }
 
     if recovered_key.unwrap().0 != target_key {
-        return ProgramResult::Err(ECDSAError::WrongSignature.into());
+        return ProgramResult::Err(LibError::WrongSignature.into());
     }
 
     Ok(())

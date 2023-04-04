@@ -1,17 +1,6 @@
-use std::mem::size_of;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::pubkey::Pubkey;
 use solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
-
-pub const MAX_NETWORKS_SIZE: usize = 20;
-pub const MAX_ADDRESS_SIZE: usize = 100;
-pub const MAX_TOKEN_ID_SIZE: usize = 100;
-pub const MAX_TX_SIZE: usize = 100;
-
-pub const BRIDGE_ADMIN_SIZE: usize = SECP256K1_PUBLIC_KEY_LENGTH + 1;
-pub const WITHDRAW_SIZE: usize = size_of::<lib::TokenType>() + (32 as usize) + (8 as usize) + MAX_NETWORKS_SIZE + MAX_ADDRESS_SIZE + 1;
-
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]

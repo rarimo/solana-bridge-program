@@ -1,9 +1,10 @@
-pub mod merkle;
-pub mod ecdsa;
-mod error;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::pubkey::Pubkey;
+
+pub mod merkle;
+pub mod ecdsa;
+pub mod error;
+pub mod instructions;
 
 pub const COMMISSION_ADMIN_PDA_SEED: &str = "commission_admin";
 

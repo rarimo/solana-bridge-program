@@ -10,7 +10,7 @@ use solana_program::{
 use solana_program::program_error::PrintProgramError;
 
 use crate::processor;
-use crate::error::CommissionError;
+use lib::error::LibError;
 
 entrypoint!(process_instruction);
 
@@ -23,7 +23,7 @@ fn process_instruction<'a>(
         Ok(()) => Ok(()),
         Err(e) => {
             // catch the error so we can print it
-            e.print();
+            e.print::<LibError>();
             return Err(e);
         }
     }

@@ -1675,10 +1675,13 @@ name = "solana-bridge-lib"
 version = "0.0.1"
 dependencies = [
  "borsh",
+ "mpl-token-metadata",
  "num-derive",
  "num-traits",
  "solana-program",
  "solana-sdk",
+ "spl-associated-token-account",
+ "spl-token",
  "thiserror",
 ]
 
@@ -1694,7 +1697,6 @@ dependencies = [
  "num-traits",
  "shank 0.0.12",
  "solana-bridge-lib",
- "solana-commission-program",
  "solana-program",
  "solana-sdk",
  "spl-associated-token-account",
@@ -1712,6 +1714,7 @@ dependencies = [
  "num-traits",
  "shank 0.0.11",
  "solana-bridge-lib",
+ "solana-bridge-program",
  "solana-program",
  "solana-sdk",
  "spl-associated-token-account",
