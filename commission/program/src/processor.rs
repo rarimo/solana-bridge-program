@@ -4,7 +4,7 @@ use solana_program::{
     program::{invoke, invoke_signed}, pubkey::Pubkey, system_instruction,
     sysvar::{rent::Rent, Sysvar},
 };
-use crate::state::{CommissionToken, CommissionAdmin};
+use crate::state::{CommissionToken, CommissionAdmin, MAX_ADMIN_SIZE, MANAGEMENT_SIZE, Management, OperationType};
 use borsh::{
     BorshDeserialize, BorshSerialize,
 };
@@ -13,9 +13,9 @@ use spl_associated_token_account::get_associated_token_address;
 use spl_associated_token_account::instruction::create_associated_token_account;
 use solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
 use lib::merkle::{ContentNode, get_merkle_root};
-use crate::merkle::{CommissionTokenData, OperationType};
+use crate::merkle::CommissionTokenData;
 use lib::ecdsa::verify_ecdsa_signature;
-use lib::instructions::commission::{CommissionInstruction, CommissionTokenArg, MAX_ADMIN_SIZE};
+use lib::instructions::commission::{CommissionInstruction, CommissionTokenArg};
 use lib::error::LibError;
 use bridge::state::BridgeAdmin;
 
@@ -177,6 +177,10 @@ pub fn process_add_token<'a>(
 
     let commission_admin_info = next_account_info(account_info_iter)?;
     let bridge_admin_info = next_account_info(account_info_iter)?;
+    let payer_info = next_account_info(account_info_iter)?;
+    let management_info = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let rent_info = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -193,6 +197,7 @@ pub fn process_add_token<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
+
     let content = ContentNode::new(
         origin,
         commission_admin_info.key.to_bytes(),
@@ -206,6 +211,31 @@ pub fn process_add_token<'a>(
 
     commission_admin.acceptable_tokens.push(CommissionToken::from(&token));
     commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
+
+    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
+    if management_key != *management_info.key {
+        return Err(LibError::WrongNonce.into());
+    }
+
+    call_create_account(
+        payer_info,
+        management_info,
+        rent_info,
+        system_program,
+        MANAGEMENT_SIZE,
+        program_id,
+        &[origin.as_slice(), &[bump_seed]],
+    )?;
+
+    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
+    if management.is_initialized {
+        return Err(LibError::AlreadyInUse.into());
+    }
+
+    management.origin = origin;
+    management.operation_type = OperationType::AddToken;
+    management.is_initialized = true;
+    management.serialize(&mut *management_info.data.borrow_mut())?;
     Ok(())
 }
 
@@ -222,6 +252,10 @@ pub fn process_remove_token<'a>(
 
     let commission_admin_info = next_account_info(account_info_iter)?;
     let bridge_admin_info = next_account_info(account_info_iter)?;
+    let payer_info = next_account_info(account_info_iter)?;
+    let management_info = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let rent_info = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -258,6 +292,31 @@ pub fn process_remove_token<'a>(
     }
 
     commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
+
+    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
+    if management_key != *management_info.key {
+        return Err(LibError::WrongNonce.into());
+    }
+
+    call_create_account(
+        payer_info,
+        management_info,
+        rent_info,
+        system_program,
+        MANAGEMENT_SIZE,
+        program_id,
+        &[origin.as_slice(), &[bump_seed]],
+    )?;
+
+    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
+    if management.is_initialized {
+        return Err(LibError::AlreadyInUse.into());
+    }
+
+    management.origin = origin;
+    management.operation_type = OperationType::RemoveToken;
+    management.is_initialized = true;
+    management.serialize(&mut *management_info.data.borrow_mut())?;
     Ok(())
 }
 
@@ -274,6 +333,10 @@ pub fn process_update_token<'a>(
 
     let commission_admin_info = next_account_info(account_info_iter)?;
     let bridge_admin_info = next_account_info(account_info_iter)?;
+    let payer_info = next_account_info(account_info_iter)?;
+    let management_info = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let rent_info = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -310,6 +373,32 @@ pub fn process_update_token<'a>(
     }
 
     commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
+
+    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
+    if management_key != *management_info.key {
+        return Err(LibError::WrongNonce.into());
+    }
+
+    call_create_account(
+        payer_info,
+        management_info,
+        rent_info,
+        system_program,
+        MANAGEMENT_SIZE,
+        program_id,
+        &[origin.as_slice(), &[bump_seed]],
+    )?;
+
+    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
+    if management.is_initialized {
+        return Err(LibError::AlreadyInUse.into());
+    }
+
+    management.origin = origin;
+    management.operation_type = OperationType::UpdateToken;
+    management.is_initialized = true;
+    management.serialize(&mut *management_info.data.borrow_mut())?;
+
     Ok(())
 }
 

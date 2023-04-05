@@ -5,26 +5,10 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use lib::merkle::{amount_bytes, Data};
-use crate::state::CommissionToken;
+use crate::state::{CommissionToken, OperationType};
 
 const SOLANA_NATIVE_DECIMALS: u8 = 9u8;
 
-#[derive(Clone)]
-pub enum OperationType {
-    AddToken,
-    RemoveToken,
-    UpdateToken,
-}
-
-impl std::convert::Into<u8> for OperationType {
-    fn into(self) -> u8 {
-        match self {
-            OperationType::AddToken => 1,
-            OperationType::RemoveToken => 2,
-            OperationType::UpdateToken => 3,
-        }
-    }
-}
 
 pub struct CommissionTokenData {
     pub operation_type: OperationType,

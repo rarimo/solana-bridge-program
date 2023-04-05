@@ -10,9 +10,7 @@ use crate::{CommissionToken, CommissionArgs};
 use std::mem::size_of;
 
 pub const MAX_TOKENS_COUNT: usize = 10;
-
 pub const MAX_TOKEN_SIZE: usize = size_of::<CommissionToken>() + 32;
-pub const MAX_ADMIN_SIZE: usize = MAX_TOKENS_COUNT * (MAX_TOKEN_SIZE + 8) + (8 as usize);
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -70,6 +68,10 @@ pub enum CommissionInstruction {
     ///
     ///   0. `[writable]` The CommissionAdmin account
     ///   1. `[]` The BridgeAdmin account
+    ///   2. `[writable, signer]` The fee payer
+    ///   3. `[writable]` The Management account
+    ///   4. `[]` System program
+    ///   5. `[]` Rent sysvar
     AddFeeToken(FeeTokenArgs),
 
     /// Remove new acceptable commission token
@@ -78,6 +80,10 @@ pub enum CommissionInstruction {
     ///
     ///   0. `[writable]` The CommissionAdmin account
     ///   1. `[]` The BridgeAdmin account
+    ///   2. `[writable, signer]` The fee payer
+    ///   3. `[writable]` The Management account
+    ///   4. `[]` System program
+    ///   5. `[]` Rent sysvar
     RemoveFeeToken(FeeTokenArgs),
 
     /// Update certain acceptable commission token
@@ -86,5 +92,9 @@ pub enum CommissionInstruction {
     ///
     ///   0. `[writable]` The CommissionAdmin account
     ///   1. `[]` The BridgeAdmin account
+    ///   2. `[writable, signer]` The fee payer
+    ///   3. `[writable]` The Management account
+    ///   4. `[]` System program
+    ///   5. `[]` Rent sysvar
     UpdateFeeToken(FeeTokenArgs),
 }

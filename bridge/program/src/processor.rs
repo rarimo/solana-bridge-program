@@ -29,9 +29,10 @@ use crate::merkle::{Data, TransferData};
 use solana_program::sysvar::instructions::{load_current_index_checked, load_instruction_at_checked};
 use lib::merkle::{ContentNode, get_merkle_root};
 use lib::ecdsa::verify_ecdsa_signature;
-use lib::instructions::bridge::{BridgeInstruction, BRIDGE_ADMIN_SIZE, WITHDRAW_SIZE, SignedMetadata};
+use lib::instructions::bridge::{BridgeInstruction, SignedMetadata};
 use lib::instructions::InstructionValidation;
 use lib::error::LibError;
+use crate::state::{BRIDGE_ADMIN_SIZE, WITHDRAW_SIZE};
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
