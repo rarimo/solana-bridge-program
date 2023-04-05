@@ -9,14 +9,32 @@ use crate::state::CommissionToken;
 
 const SOLANA_NATIVE_DECIMALS: u8 = 9u8;
 
+#[derive(Clone)]
+pub enum OperationType {
+    AddToken,
+    RemoveToken,
+    UpdateToken,
+}
+
+impl std::convert::Into<u8> for OperationType {
+    fn into(self) -> u8 {
+        match self {
+            OperationType::AddToken => 1,
+            OperationType::RemoveToken => 2,
+            OperationType::UpdateToken => 3,
+        }
+    }
+}
 
 pub struct CommissionTokenData {
+    pub operation_type: OperationType,
     pub token: CommissionToken,
 }
 
 impl CommissionTokenData {
-    pub fn new_data(token: CommissionToken) -> Self {
+    pub fn new_data(operation_type: OperationType, token: CommissionToken) -> Self {
         CommissionTokenData {
+            operation_type,
             token,
         }
     }
@@ -25,6 +43,8 @@ impl CommissionTokenData {
 impl Data for CommissionTokenData {
     fn get_operation(&self) -> Vec<u8> {
         let mut data = Vec::new();
+
+        data.push(self.operation_type.clone().into());
 
         match self.token.token {
             lib::CommissionToken::Native => {
