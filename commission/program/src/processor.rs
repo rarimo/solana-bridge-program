@@ -46,6 +46,10 @@ pub fn process_instruction<'a>(
             msg!("Instruction: Update fee token");
             process_update_token(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token)
         }
+        CommissionInstruction::Withdraw(args) => {
+            msg!("Instruction: Withdraw collected tokens");
+            process_withdraw(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token, args.withdraw_amount, args.receiver)
+        }
     }
 }
 
@@ -123,7 +127,12 @@ pub fn process_charge_commission<'a>(
 
     match commission_token.token.into() {
         lib::CommissionToken::Native => {
-            call_charge_in_native(owner_info, commission_admin_info, commission_token.amount)?;
+            call_transfer_native(
+                owner_info,
+                commission_admin_info,
+                commission_token.amount,
+                &[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()],
+            )?;
         }
         lib::CommissionToken::FT(mint) => {
             let owner_associated_info = next_account_info(account_info_iter)?;
@@ -135,7 +144,7 @@ pub fn process_charge_commission<'a>(
             }
 
             if commission_associated_info.data.borrow().as_ref().len() == 0 {
-                msg!("Creating bridge admin associated account");
+                msg!("Creating commission admin associated account");
                 let mint_info = next_account_info(account_info_iter)?;
                 call_create_associated_account(
                     owner_info,
@@ -148,11 +157,12 @@ pub fn process_charge_commission<'a>(
                 )?;
             }
 
-            call_charge_in_ft(
+            call_transfer_ft(
                 owner_associated_info,
                 commission_associated_info,
                 owner_info,
                 commission_token.amount,
+                &[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()],
             )?;
         }
         lib::CommissionToken::NFT(mint) => {
@@ -402,10 +412,139 @@ pub fn process_update_token<'a>(
     Ok(())
 }
 
-fn call_charge_in_native<'a>(
+
+pub fn process_withdraw<'a>(
+    program_id: &'a Pubkey,
+    accounts: &'a [AccountInfo<'a>],
+    origin: [u8; 32],
+    signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    recovery_id: u8,
+    path: Vec<[u8; 32]>,
+    token: lib::CommissionToken,
+    withdraw_amount: u64,
+    receiver: Pubkey,
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+
+    let commission_admin_info = next_account_info(account_info_iter)?;
+    let bridge_admin_info = next_account_info(account_info_iter)?;
+    let receiver_info = next_account_info(account_info_iter)?;
+    let management_info = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let rent_info = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+
+    let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
+    if commission_key != *commission_admin_info.key {
+        return Err(LibError::WrongAdmin.into());
+    }
+
+    let commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
+    if !commission_admin.is_initialized {
+        return Err(LibError::NotInitialized.into());
+    }
+
+    let bridge_admin: BridgeAdmin = BorshDeserialize::deserialize(&mut bridge_admin_info.data.borrow_mut().as_ref())?;
+    if !bridge_admin.is_initialized {
+        return Err(LibError::NotInitialized.into());
+    }
+
+    let content = ContentNode::new(
+        origin,
+        receiver.to_bytes(),
+        program_id.to_bytes(),
+        Box::new(
+            CommissionTokenData::new_data(OperationType::WithdrawToken, CommissionToken {
+                token: token.clone(),
+                amount: withdraw_amount,
+            })
+        ),
+    );
+    let root = get_merkle_root(content, &path)?;
+    verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
+
+    match token.into() {
+        lib::CommissionToken::Native => {
+            call_transfer_native(
+                commission_admin_info,
+                receiver_info,
+                withdraw_amount,
+                &[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()],
+            )?;
+        }
+        lib::CommissionToken::FT(mint) => {
+            let receiver_associated_info = next_account_info(account_info_iter)?;
+            let commission_associated_info = next_account_info(account_info_iter)?;
+
+            if *commission_associated_info.key !=
+                get_associated_token_address(&commission_key, &mint) {
+                return Err(LibError::WrongTokenAccount.into());
+            }
+
+            if *receiver_associated_info.key !=
+                get_associated_token_address(&receiver, &mint) {
+                return Err(LibError::WrongTokenAccount.into());
+            }
+
+            if receiver_associated_info.data.borrow().as_ref().len() == 0 {
+                msg!("Creating receiver associated account");
+                let mint_info = next_account_info(account_info_iter)?;
+                call_create_associated_account(
+                    receiver_info,
+                    receiver_info,
+                    mint_info,
+                    receiver_associated_info,
+                    rent_info,
+                    system_program,
+                    token_program,
+                )?;
+            }
+
+            call_transfer_ft(
+                commission_associated_info,
+                receiver_associated_info,
+                commission_admin_info,
+                withdraw_amount,
+                &[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()],
+            )?;
+        }
+        lib::CommissionToken::NFT(mint) => {
+            return Err(LibError::NotSupported.into());
+        }
+    }
+
+    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
+    if management_key != *management_info.key {
+        return Err(LibError::WrongNonce.into());
+    }
+
+    call_create_account(
+        receiver_info,
+        management_info,
+        rent_info,
+        system_program,
+        MANAGEMENT_SIZE,
+        program_id,
+        &[origin.as_slice(), &[bump_seed]],
+    )?;
+
+    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
+    if management.is_initialized {
+        return Err(LibError::AlreadyInUse.into());
+    }
+
+    management.origin = origin;
+    management.operation_type = OperationType::WithdrawToken;
+    management.is_initialized = true;
+    management.serialize(&mut *management_info.data.borrow_mut())?;
+    Ok(())
+}
+
+fn call_transfer_native<'a>(
     from: &AccountInfo<'a>,
     to: &AccountInfo<'a>,
     amount: u64,
+    seeds: &[&[u8]],
 ) -> ProgramResult {
     let transfer_tokens_instruction = solana_program::system_instruction::transfer(
         from.key,
@@ -413,21 +552,24 @@ fn call_charge_in_native<'a>(
         amount,
     );
 
-    msg!("Charging commission in native token");
-    invoke(
-        &transfer_tokens_instruction,
-        &[
-            from.clone(),
-            to.clone(),
-        ],
-    )
+    let accounts = [
+        from.clone(),
+        to.clone(),
+    ];
+
+    if seeds.len() > 0 {
+        return invoke_signed(&transfer_tokens_instruction, &accounts, &[seeds]);
+    }
+
+    invoke(&transfer_tokens_instruction, &accounts)
 }
 
-fn call_charge_in_ft<'a>(
+fn call_transfer_ft<'a>(
     from: &AccountInfo<'a>,
     to: &AccountInfo<'a>,
     authority: &AccountInfo<'a>,
     amount: u64,
+    seeds: &[&[u8]],
 ) -> ProgramResult {
     let transfer_tokens_instruction = transfer(
         &spl_token::id(),
@@ -438,14 +580,17 @@ fn call_charge_in_ft<'a>(
         amount,
     )?;
 
-    invoke(
-        &transfer_tokens_instruction,
-        &[
-            from.clone(),
-            to.clone(),
-            authority.clone(),
-        ],
-    )
+    let accounts = [
+        from.clone(),
+        to.clone(),
+        authority.clone(),
+    ];
+
+    if seeds.len() > 0 {
+        return invoke_signed(&transfer_tokens_instruction, &accounts, &[seeds]);
+    }
+
+    invoke(&transfer_tokens_instruction, &accounts)
 }
 
 fn call_create_associated_account<'a>(
