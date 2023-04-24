@@ -210,7 +210,7 @@ pub fn process_add_token<'a>(
 
     let content = ContentNode::new(
         origin,
-        commission_admin_info.key.to_bytes(),
+        program_id.to_bytes(),
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::AddToken, CommissionToken::from(&token))
@@ -284,7 +284,7 @@ pub fn process_remove_token<'a>(
 
     let content = ContentNode::new(
         origin,
-        commission_admin_info.key.to_bytes(),
+        program_id.to_bytes(),
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::RemoveToken, CommissionToken::from(&token))
@@ -365,7 +365,7 @@ pub fn process_update_token<'a>(
 
     let content = ContentNode::new(
         origin,
-        commission_admin_info.key.to_bytes(),
+        program_id.to_bytes(),
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::UpdateToken, CommissionToken::from(&token))
