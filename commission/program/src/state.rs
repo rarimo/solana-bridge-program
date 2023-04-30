@@ -18,10 +18,10 @@ pub enum OperationType {
 impl std::convert::Into<u8> for OperationType {
     fn into(self) -> u8 {
         match self {
-            OperationType::AddToken => 1,
-            OperationType::RemoveToken => 2,
-            OperationType::UpdateToken => 3,
-            OperationType::WithdrawToken => 4,
+            OperationType::AddToken => 0,
+            OperationType::RemoveToken => 1,
+            OperationType::UpdateToken => 2,
+            OperationType::WithdrawToken => 3,
         }
     }
 }
