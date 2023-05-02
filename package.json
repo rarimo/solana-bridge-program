@@ -9,7 +9,11 @@
 
     "build:commission": "cargo build-bpf --manifest-path=./commission/program/Cargo.toml --bpf-out-dir=./dist/program",
     "clean:commission": "cargo clean --manifest-path=./commission/program/Cargo.toml && rm -rf ./dist",
-    "test:commission": "cargo test-bpf --manifest-path=./commission/program/Cargo.toml"
+    "test:commission": "cargo test-bpf --manifest-path=./commission/program/Cargo.toml",
+
+    "build:upgrade": "cargo build-bpf --manifest-path=./upgrade/program/Cargo.toml --bpf-out-dir=./dist/program",
+    "clean:upgrade": "cargo clean --manifest-path=./upgrade/program/Cargo.toml && rm -rf ./dist",
+    "test:upgrade": "cargo test-bpf --manifest-path=./upgrade/program/Cargo.toml"
   },
   "dependencies": {
     "@solana/web3.js": "^1.7.0",

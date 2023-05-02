@@ -27,7 +27,7 @@ pub fn process_instruction<'a>(
     let instruction = CommissionInstruction::try_from_slice(input)?;
     match instruction {
         CommissionInstruction::InitializeAdmin(args) => {
-            msg!("Instruction: Create Bridge Admin");
+            msg!("Instruction: Create Comission Admin");
             process_init_admin(program_id, accounts, args.acceptable_tokens)
         }
         CommissionInstruction::ChargeCommission(args) => {
@@ -73,7 +73,7 @@ pub fn process_init_admin<'a>(
         return Err(LibError::WrongAdmin.into());
     }
 
-    call_create_account(
+    lib::call_create_account(
         fee_payer_info,
         bridge_admin_info,
         rent_info,
@@ -146,7 +146,7 @@ pub fn process_charge_commission<'a>(
             if commission_associated_info.data.borrow().as_ref().len() == 0 {
                 msg!("Creating commission admin associated account");
                 let mint_info = next_account_info(account_info_iter)?;
-                call_create_associated_account(
+                lib::call_create_associated_account(
                     owner_info,
                     commission_admin_info,
                     mint_info,
@@ -227,7 +227,7 @@ pub fn process_add_token<'a>(
         return Err(LibError::WrongNonce.into());
     }
 
-    call_create_account(
+    lib::call_create_account(
         payer_info,
         management_info,
         rent_info,
@@ -308,7 +308,7 @@ pub fn process_remove_token<'a>(
         return Err(LibError::WrongNonce.into());
     }
 
-    call_create_account(
+    lib::call_create_account(
         payer_info,
         management_info,
         rent_info,
@@ -389,7 +389,7 @@ pub fn process_update_token<'a>(
         return Err(LibError::WrongNonce.into());
     }
 
-    call_create_account(
+    lib::call_create_account(
         payer_info,
         management_info,
         rent_info,
@@ -489,7 +489,7 @@ pub fn process_withdraw<'a>(
             if receiver_associated_info.data.borrow().as_ref().len() == 0 {
                 msg!("Creating receiver associated account");
                 let mint_info = next_account_info(account_info_iter)?;
-                call_create_associated_account(
+                lib::call_create_associated_account(
                     receiver_info,
                     receiver_info,
                     mint_info,
@@ -518,7 +518,7 @@ pub fn process_withdraw<'a>(
         return Err(LibError::WrongNonce.into());
     }
 
-    call_create_account(
+    lib::call_create_account(
         receiver_info,
         management_info,
         rent_info,
@@ -591,66 +591,6 @@ fn call_transfer_ft<'a>(
     }
 
     invoke(&transfer_tokens_instruction, &accounts)
-}
-
-fn call_create_associated_account<'a>(
-    payer: &AccountInfo<'a>,
-    wallet: &AccountInfo<'a>,
-    mint: &AccountInfo<'a>,
-    account: &AccountInfo<'a>,
-    rent_info: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    spl_token: &AccountInfo<'a>,
-) -> ProgramResult {
-    invoke(
-        &create_associated_token_account(
-            payer.key,
-            wallet.key,
-            mint.key,
-            spl_token.key,
-        ),
-        &[
-            payer.clone(),
-            account.clone(),
-            wallet.clone(),
-            mint.clone(),
-            system_program.clone(),
-            spl_token.clone(),
-            rent_info.clone()
-        ],
-    )
-}
-
-fn call_create_account<'a>(
-    payer: &AccountInfo<'a>,
-    account: &AccountInfo<'a>,
-    rent_info: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    space: usize,
-    owner: &Pubkey,
-    seeds: &[&[u8]],
-) -> ProgramResult {
-    let rent = Rent::from_account_info(rent_info)?;
-
-    let instruction = system_instruction::create_account(
-        payer.key,
-        account.key,
-        rent.minimum_balance(space),
-        space as u64,
-        owner,
-    );
-
-    let accounts = [
-        payer.clone(),
-        account.clone(),
-        system_program.clone(),
-    ];
-
-    if seeds.len() > 0 {
-        invoke_signed(&instruction, &accounts, &[seeds])
-    } else {
-        invoke(&instruction, &accounts)
-    }
 }
 
 fn check_token_is_acceptable(list: Vec<CommissionToken>, token: lib::CommissionToken) -> Result<CommissionToken, LibError> {

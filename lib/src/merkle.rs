@@ -1,6 +1,6 @@
 use solana_program::program_error::ProgramError;
 
-const SOLANA_NETWORK: &str = "Solana";
+pub const SOLANA_NETWORK: &str = "Solana";
 
 pub trait Data {
     fn get_operation(&self) -> Vec<u8>;

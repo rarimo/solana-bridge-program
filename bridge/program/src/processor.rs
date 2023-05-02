@@ -43,7 +43,7 @@ pub fn process_instruction<'a>(
     match instruction {
         BridgeInstruction::InitializeAdmin(args) => {
             msg!("Instruction: Create Bridge Admin");
-            process_init_admin(program_id, accounts, args.seeds, args.public_key)
+            process_init_admin(program_id, accounts, args.seeds, args.public_key, args.commission_program)
         }
         BridgeInstruction::TransferOwnership(args) => {
             msg!("Instruction: Transfer Bridge Admin ownership");
@@ -96,6 +96,7 @@ pub fn process_init_admin<'a>(
     accounts: &'a [AccountInfo<'a>],
     seeds: [u8; 32],
     public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
+    commission_program: Pubkey,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -109,7 +110,7 @@ pub fn process_init_admin<'a>(
         return Err(LibError::WrongSeeds.into());
     }
 
-    call_create_account(
+    lib::call_create_account(
         fee_payer_info,
         bridge_admin_info,
         rent_info,
@@ -126,6 +127,7 @@ pub fn process_init_admin<'a>(
 
     bridge_admin.public_key = public_key;
     bridge_admin.is_initialized = true;
+    bridge_admin.commission_program = commission_program;
     bridge_admin.serialize(&mut *bridge_admin_info.data.borrow_mut())?;
     Ok(())
 }
@@ -152,7 +154,7 @@ pub fn process_transfer_ownership<'a>(
     }
 
 
-    verify_ecdsa_signature(new_public_key.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
+    verify_ecdsa_signature(solana_program::keccak::hash(new_public_key.as_slice()).as_ref(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     bridge_admin.public_key = new_public_key;
     bridge_admin.serialize(&mut *bridge_admin_info.data.borrow_mut())?;
@@ -248,7 +250,7 @@ pub fn process_deposit_ft<'a>(
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Creating bridge admin associated account");
-        call_create_associated_account(
+        lib::call_create_associated_account(
             owner_info,
             bridge_admin_info,
             mint_info,
@@ -328,7 +330,7 @@ pub fn process_deposit_nft<'a>(
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Creating bridge admin associated account");
-        call_create_associated_account(
+        lib::call_create_associated_account(
             owner_info,
             bridge_admin_info,
             mint_info,
@@ -421,7 +423,7 @@ pub fn process_withdraw_native<'a>(
 
     // Need to do that before transferring SOls
     msg!("Creating withdraw account");
-    call_create_account(
+    lib::call_create_account(
         owner_info,
         withdraw_info,
         rent_info,
@@ -538,7 +540,7 @@ pub fn process_withdraw_ft<'a>(
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Create bridge associated account");
-        call_create_associated_account(
+        lib::call_create_associated_account(
             owner_info,
             bridge_admin_info,
             mint_info,
@@ -558,7 +560,7 @@ pub fn process_withdraw_ft<'a>(
 
     if owner_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Create owner associated account");
-        call_create_associated_account(
+        lib::call_create_associated_account(
             owner_info,
             owner_info,
             mint_info,
@@ -596,7 +598,7 @@ pub fn process_withdraw_ft<'a>(
     }
 
     msg!("Creating withdraw account");
-    call_create_account(
+    lib::call_create_account(
         owner_info,
         withdraw_info,
         rent_info,
@@ -727,7 +729,7 @@ pub fn process_withdraw_nft<'a>(
 
     if bridge_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Create bridge associated account");
-        call_create_associated_account(
+        lib::call_create_associated_account(
             owner_info,
             bridge_admin_info,
             mint_info,
@@ -747,7 +749,7 @@ pub fn process_withdraw_nft<'a>(
 
     if owner_associated_info.data.borrow().as_ref().len() == 0 {
         msg!("Deposit owner associated account");
-        call_create_associated_account(
+        lib::call_create_associated_account(
             owner_info,
             owner_info,
             mint_info,
@@ -784,7 +786,7 @@ pub fn process_withdraw_nft<'a>(
     }
 
     msg!("Creating withdraw account");
-    call_create_account(
+    lib::call_create_account(
         owner_info,
         withdraw_info,
         rent_info,
@@ -885,7 +887,7 @@ pub fn process_create_collection<'a>(
     }
 
     msg!("Creating mint account");
-    call_create_account(
+    lib::call_create_account(
         payer_info,
         mint_info,
         rent_info,
@@ -904,7 +906,7 @@ pub fn process_create_collection<'a>(
     )?;
 
     msg!("Crating bridge admin associated account");
-    call_create_associated_account(
+    lib::call_create_associated_account(
         payer_info,
         bridge_admin_info,
         mint_info,
@@ -966,7 +968,7 @@ fn try_mint_token_with_meta<'a>(
 
     if mint_info.data.borrow().as_ref().len() == 0 {
         msg!("Creating mint account");
-        call_create_account(
+        lib::call_create_account(
             owner_info,
             mint_info,
             rent_info,
@@ -1052,65 +1054,6 @@ fn call_transfer_token<'a>(
         ],
         signers_seeds,
     )
-}
-
-fn call_create_associated_account<'a>(
-    payer: &AccountInfo<'a>,
-    wallet: &AccountInfo<'a>,
-    mint: &AccountInfo<'a>,
-    account: &AccountInfo<'a>,
-    rent_info: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    spl_token: &AccountInfo<'a>,
-) -> ProgramResult {
-    invoke(
-        &create_associated_token_account(
-            payer.key,
-            wallet.key,
-            mint.key,
-        ),
-        &[
-            payer.clone(),
-            account.clone(),
-            wallet.clone(),
-            mint.clone(),
-            system_program.clone(),
-            spl_token.clone(),
-            rent_info.clone()
-        ],
-    )
-}
-
-fn call_create_account<'a>(
-    payer: &AccountInfo<'a>,
-    account: &AccountInfo<'a>,
-    rent_info: &AccountInfo<'a>,
-    system_program: &AccountInfo<'a>,
-    space: usize,
-    owner: &Pubkey,
-    seeds: &[&[u8]],
-) -> ProgramResult {
-    let rent = Rent::from_account_info(rent_info)?;
-
-    let instruction = system_instruction::create_account(
-        payer.key,
-        account.key,
-        rent.minimum_balance(space),
-        space as u64,
-        owner,
-    );
-
-    let accounts = [
-        payer.clone(),
-        account.clone(),
-        system_program.clone(),
-    ];
-
-    if seeds.len() > 0 {
-        invoke_signed(&instruction, &accounts, &[seeds])
-    } else {
-        invoke(&instruction, &accounts)
-    }
 }
 
 fn call_mint_to<'a>(

@@ -25,6 +25,7 @@ pub struct InitializeAdminArgs {
     pub public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     // Admin account seeds (also public)
     pub seeds: [u8; 32],
+    pub commission_program: Pubkey,
 }
 
 #[repr(C)]
@@ -306,6 +307,7 @@ pub fn initialize_admin(
     program_id: Pubkey,
     bridge_admin: Pubkey,
     fee_payer: Pubkey,
+    commission_program: Pubkey,
     public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     seeds: [u8; 32],
 ) -> Instruction {
@@ -320,6 +322,7 @@ pub fn initialize_admin(
         data: BridgeInstruction::InitializeAdmin(InitializeAdminArgs {
             public_key,
             seeds,
+            commission_program,
         }).try_to_vec().unwrap(),
     }
 }

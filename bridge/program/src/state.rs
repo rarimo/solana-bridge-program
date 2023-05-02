@@ -5,7 +5,7 @@ use lib::TokenType;
 use lib::instructions::bridge::{MAX_NETWORKS_SIZE, MAX_ADDRESS_SIZE};
 use std::mem::size_of;
 
-pub const BRIDGE_ADMIN_SIZE: usize = SECP256K1_PUBLIC_KEY_LENGTH + 1;
+pub const BRIDGE_ADMIN_SIZE: usize = SECP256K1_PUBLIC_KEY_LENGTH + (32 as usize) + 1;
 pub const WITHDRAW_SIZE: usize = size_of::<TokenType>() + (32 as usize) + (8 as usize) + MAX_NETWORKS_SIZE + MAX_ADDRESS_SIZE + 1;
 
 #[repr(C)]
