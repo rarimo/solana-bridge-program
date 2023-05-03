@@ -52,7 +52,7 @@ pub fn process_init_admin<'a>(
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    let upgrade_key = Pubkey::create_program_address(&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes()], &program_id)?;
+    let upgrade_key = Pubkey::create_program_address(&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes(), upgrade_program.as_ref()], &program_id)?;
     if upgrade_key != *upgrade_admin_info.key {
         return Err(LibError::WrongAdmin.into());
     }
@@ -90,16 +90,15 @@ pub fn process_transfer_ownership<'a>(
     let account_info_iter = &mut accounts.iter();
     let upgrade_admin_info = next_account_info(account_info_iter)?;
 
-    let upgrade_admin_key = Pubkey::create_program_address(&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes()], &program_id)?;
-    if upgrade_admin_key != *upgrade_admin_info.key {
-        return Err(LibError::WrongSeeds.into());
-    }
-
     let mut upgrade_admin: UpgradeAdmin = BorshDeserialize::deserialize(&mut upgrade_admin_info.data.borrow_mut().as_ref())?;
     if !upgrade_admin.is_initialized {
         return Err(LibError::NotInitialized.into());
     }
 
+    let upgrade_admin_key = Pubkey::create_program_address(&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes(), upgrade_admin.contract.as_ref()], &program_id)?;
+    if upgrade_admin_key != *upgrade_admin_info.key {
+        return Err(LibError::WrongSeeds.into());
+    }
 
     verify_ecdsa_signature(solana_program::keccak::hash(new_public_key.as_slice()).as_ref(), signature.as_slice(), recovery_id, upgrade_admin.public_key)?;
 
@@ -123,7 +122,7 @@ pub fn process_upgrade<'a>(
     let rent_info = next_account_info(account_info_iter)?;
     let clock_info = next_account_info(account_info_iter)?;
 
-    let upgrade_admin_key = Pubkey::create_program_address(&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes()], &program_id)?;
+    let upgrade_admin_key = Pubkey::create_program_address(&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes(), upgrade_program.key.as_ref()], &program_id)?;
     if upgrade_admin_key != *upgrade_admin_info.key {
         return Err(LibError::WrongSeeds.into());
     }
