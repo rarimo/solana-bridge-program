@@ -69,7 +69,7 @@ pub enum CommissionInstruction {
     ///   3. `[]` Rent sysvar
     ///   4. `[]` SPL token program
     ///   7. `[writable]` Commission token owner associated account (Optional)
-    ///   5. `[writable ]` Commission token admin associated account (Optional)
+    ///   5. `[writable]` Commission token admin associated account (Optional)
     ///   6. `[]` Commission token mint account (Optional)
     ChargeCommission(CommissionArgs),
 

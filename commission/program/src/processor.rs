@@ -111,7 +111,6 @@ pub fn process_charge_commission<'a>(
     let owner_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
-    let token_program = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -135,6 +134,7 @@ pub fn process_charge_commission<'a>(
             )?;
         }
         lib::CommissionToken::FT(mint) => {
+            let token_program = next_account_info(account_info_iter)?;
             let owner_associated_info = next_account_info(account_info_iter)?;
             let commission_associated_info = next_account_info(account_info_iter)?;
 
@@ -431,7 +431,6 @@ pub fn process_withdraw<'a>(
     let management_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
-    let token_program = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -472,6 +471,7 @@ pub fn process_withdraw<'a>(
             )?;
         }
         lib::CommissionToken::FT(mint) => {
+            let token_program = next_account_info(account_info_iter)?;
             let receiver_associated_info = next_account_info(account_info_iter)?;
             let commission_associated_info = next_account_info(account_info_iter)?;
 
