@@ -48,7 +48,7 @@ pub fn process_instruction<'a>(
         }
         CommissionInstruction::Withdraw(args) => {
             msg!("Instruction: Withdraw collected tokens");
-            process_withdraw(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token, args.withdraw_amount, args.receiver)
+            process_withdraw(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token, args.withdraw_amount)
         }
     }
 }
@@ -422,7 +422,6 @@ pub fn process_withdraw<'a>(
     path: Vec<[u8; 32]>,
     token: lib::CommissionToken,
     withdraw_amount: u64,
-    receiver: Pubkey,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -451,7 +450,7 @@ pub fn process_withdraw<'a>(
 
     let content = ContentNode::new(
         origin,
-        receiver.to_bytes(),
+        receiver_info.key.to_bytes(),
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::WithdrawToken, CommissionToken {
@@ -482,7 +481,7 @@ pub fn process_withdraw<'a>(
             }
 
             if *receiver_associated_info.key !=
-                get_associated_token_address(&receiver, &mint) {
+                get_associated_token_address(receiver_info.key, &mint) {
                 return Err(LibError::WrongTokenAccount.into());
             }
 

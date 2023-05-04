@@ -44,7 +44,6 @@ pub struct WithdrawArgs {
     pub path: Vec<[u8; 32]>,
     pub token: CommissionToken,
     pub withdraw_amount: u64,
-    pub receiver: Pubkey,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
@@ -54,7 +53,7 @@ pub enum CommissionInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The CommissionAdmin account to initialize
-    ///   1. `[writable]` The BridgeAdmin account
+    ///   1. `[]` The BridgeAdmin account
     ///   2. `[writable,signer]` The fee payer
     ///   3. `[]` System program
     ///   4. `[]` Rent sysvar
@@ -69,8 +68,8 @@ pub enum CommissionInstruction {
     ///   2. `[]` System program
     ///   3. `[]` Rent sysvar
     ///   4. `[]` SPL token program
-    ///   7. `[]` Commission token owner associated account (Optional)
-    ///   5. `[]` Commission token admin associated account (Optional)
+    ///   7. `[writable]` Commission token owner associated account (Optional)
+    ///   5. `[writable ]` Commission token admin associated account (Optional)
     ///   6. `[]` Commission token mint account (Optional)
     ChargeCommission(CommissionArgs),
 
