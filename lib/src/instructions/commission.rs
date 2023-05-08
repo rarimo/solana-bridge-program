@@ -64,13 +64,14 @@ pub enum CommissionInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The CommissionAdmin account
-    ///   1. `[writable,signer]` The owner account
-    ///   2. `[]` System program
-    ///   3. `[]` Rent sysvar
-    ///   4. `[]` SPL token program
-    ///   7. `[writable]` Commission token owner associated account (Optional)
-    ///   5. `[writable]` Commission token admin associated account (Optional)
-    ///   6. `[]` Commission token mint account (Optional)
+    ///   1. `[]` The BridgeAdmin account
+    ///   2. `[writable,signer]` The owner account
+    ///   3. `[]` System program
+    ///   4. `[]` Rent sysvar
+    ///   5. `[]` SPL token program
+    ///   6. `[writable]` Commission token owner associated account (Optional)
+    ///   7. `[writable]` Commission token admin associated account (Optional)
+    ///   8. `[]` Commission token mint account (Optional)
     ChargeCommission(CommissionArgs),
 
     /// Add new acceptable commission token

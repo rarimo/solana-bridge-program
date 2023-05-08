@@ -188,7 +188,7 @@ pub fn process_deposit_native<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
+    verify_commission_charged( bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
 
     let transfer_tokens_instruction = solana_program::system_instruction::transfer(
         owner_info.key,
@@ -241,7 +241,7 @@ pub fn process_deposit_ft<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
+    verify_commission_charged(bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -321,7 +321,7 @@ pub fn process_deposit_nft<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    verify_commission_charged(program_id, bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, 1)?;
+    verify_commission_charged( bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, 1)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -814,21 +814,20 @@ pub fn process_withdraw_nft<'a>(
 }
 
 pub fn verify_commission_charged<'a>(
-    program_id: &'a Pubkey,
     bridge_admin_info: &AccountInfo<'a>,
-    sysvar_info: &AccountInfo<'a>,
+    instruction_sysvar_info: &AccountInfo<'a>,
     admin: &BridgeAdmin,
     token: lib::TokenType,
     amount: u64,
 ) -> ProgramResult {
-    let current_index = load_current_index_checked(sysvar_info)?;
-    let commission_instruction = load_instruction_at_checked((current_index - 1) as usize, sysvar_info)?;
+    let current_index = load_current_index_checked(instruction_sysvar_info)?;
+    let commission_instruction = load_instruction_at_checked((current_index - 1) as usize, instruction_sysvar_info)?;
 
     if commission_instruction.program_id != admin.commission_program {
         return Err(LibError::WrongCommissionProgram.into());
     }
 
-    let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
+    let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &commission_instruction.program_id)?;
     if commission_key != commission_instruction.accounts[0].pubkey {
         return Err(LibError::WrongCommissionAccount.into());
     }
