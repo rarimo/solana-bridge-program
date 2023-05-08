@@ -12,7 +12,6 @@ use solana_program::program_error::{PrintProgramError, ProgramError};
 use crate::processor;
 use lib::error::LibError;
 
-declare_id!("8RuX2EomaZj5xiEyU78XpDWRRp5wou4QNckHnkYX2Fgs");
 entrypoint!(process_instruction);
 
 fn process_instruction<'a>(

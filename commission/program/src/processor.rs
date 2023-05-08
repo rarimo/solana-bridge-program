@@ -75,7 +75,7 @@ pub fn process_init_admin<'a>(
 
     lib::call_create_account(
         fee_payer_info,
-        bridge_admin_info,
+        commission_admin_info,
         rent_info,
         system_program,
         MAX_ADMIN_SIZE,
