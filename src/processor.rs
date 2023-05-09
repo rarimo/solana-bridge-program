@@ -4,7 +4,7 @@ use borsh::{
     BorshDeserialize, BorshSerialize,
 };
 use mpl_token_metadata::{
-    instruction::{create_master_edition_v3, create_metadata_accounts_v2, verify_collection},
+    instruction::{create_master_edition_v3, create_metadata_accounts_v3, verify_collection},
     state::{DataV2, TokenStandard},
 };
 use solana_program::{
@@ -1126,7 +1126,7 @@ fn call_create_metadata<'a>(
     data: SignedMetadata,
     seeds: [u8; 32],
 ) -> ProgramResult {
-    let create_metadata_instruction = create_metadata_accounts_v2(
+    let create_metadata_instruction = create_metadata_accounts_v3(
         mpl_token_metadata::id(),
         *metadata_account.key,
         *mint.key,
@@ -1140,6 +1140,7 @@ fn call_create_metadata<'a>(
         0,
         true,
         true,
+        None,
         None,
         None,
     );
