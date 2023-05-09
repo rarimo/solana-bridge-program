@@ -8,9 +8,6 @@ use crate::state::{MAX_ADMIN_SIZE, UpgradeAdmin};
 use borsh::{
     BorshDeserialize, BorshSerialize,
 };
-use spl_token::instruction::transfer;
-use spl_associated_token_account::get_associated_token_address;
-use spl_associated_token_account::instruction::create_associated_token_account;
 use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH};
 use lib::ecdsa::verify_ecdsa_signature;
 use lib::error::LibError;

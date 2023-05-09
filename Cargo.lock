@@ -994,9 +994,9 @@ dependencies = [
 
 [[package]]
 name = "mpl-token-metadata"
-version = "1.9.1"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "410acbbc7d543108cc4d93f98290da008716c801f04a923cd83de2ec86244c1f"
+checksum = "aed414104154928aa995a44a0a474c449d04ce5a4ee6c975ad41c5d2912f0dfe"
 dependencies = [
  "arrayref",
  "borsh",
@@ -1024,9 +1024,9 @@ dependencies = [
 
 [[package]]
 name = "mpl-utils"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fc48e64c50dba956acb46eec86d6968ef0401ef37031426da479f1f2b592066"
+checksum = "822133b6cba8f9a43e5e0e189813be63dd795858f54155c729833be472ffdb51"
 dependencies = [
  "arrayref",
  "borsh",
@@ -1712,7 +1712,7 @@ dependencies = [
  "borsh",
  "num-derive",
  "num-traits",
- "shank 0.0.11",
+ "shank 0.0.12",
  "solana-bridge-lib",
  "solana-bridge-program",
  "solana-program",
@@ -1906,14 +1906,12 @@ dependencies = [
  "arrayref",
  "borsh",
  "bs58",
- "mpl-token-metadata",
  "num-derive",
  "num-traits",
- "shank 0.0.11",
+ "shank 0.0.12",
  "solana-bridge-lib",
  "solana-program",
  "solana-sdk",
- "spl-associated-token-account",
  "spl-token",
  "thiserror",
 ]
