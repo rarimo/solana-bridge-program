@@ -41,15 +41,18 @@ impl ContentNode {
     }
 }
 
-pub fn amount_bytes(amount: u64) -> [u8; 32] {
-    let bytes = amount.to_be_bytes();
+pub fn amount_bytes(amount: u64) -> Vec<u8> {
     let mut result: [u8; 32] = [0; 32];
+    if amount == 0 {
+        return Vec::new();
+    }
 
+    let bytes = amount.to_be_bytes();
     for i in 0..bytes.len() {
         result[31 - i] = bytes[bytes.len() - 1 - i];
     }
 
-    return result;
+    return Vec::from(result);
 }
 
 pub fn get_merkle_root(content: ContentNode, path: &Vec<[u8; 32]>) -> Result<[u8; 32], ProgramError> {

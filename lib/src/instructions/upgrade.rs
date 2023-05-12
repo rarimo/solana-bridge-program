@@ -60,9 +60,9 @@ pub enum UpgradeInstruction {
     /// Accounts expected by this instruction:
     ///
     ///   0. `[writable]` The UpgradeAdmin account
-    ///   1. `[writable]` The ProgramData account.
-    ///   2. `[writable]` The Program account corresponding to stores address in UpgradeAdmin.
-    ///   3. `[writable]` The Buffer account where the program data has been
+    ///   1. `[]` The ProgramData account.
+    ///   2. `[]` The Program account corresponding to stores address in UpgradeAdmin.
+    ///   3. `[]` The Buffer account where the program data has been
     ///      written.  The buffer account's authority must match the program's
     ///      authority
     ///   4. `[writable]` The spill account.

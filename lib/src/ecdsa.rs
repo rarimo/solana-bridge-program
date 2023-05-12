@@ -12,7 +12,12 @@ pub fn verify_ecdsa_signature(hash: &[u8], sig: &[u8], reid: u8, target_key: [u8
         return ProgramResult::Err(LibError::InvalidSignature.into());
     }
 
-    if recovered_key.unwrap().0 != target_key {
+    let key =  recovered_key.unwrap().0;
+
+    msg!("Recovered public key from signature: {}", bs58::encode(key.as_ref()).into_string().as_str());
+    msg!("Required public key: {}", bs58::encode(target_key.as_ref()).into_string().as_str());
+
+    if key != target_key {
         return ProgramResult::Err(LibError::WrongSignature.into());
     }
 

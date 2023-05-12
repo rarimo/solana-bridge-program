@@ -1675,6 +1675,7 @@ name = "solana-bridge-lib"
 version = "0.0.1"
 dependencies = [
  "borsh",
+ "bs58",
  "mpl-token-metadata",
  "num-derive",
  "num-traits",

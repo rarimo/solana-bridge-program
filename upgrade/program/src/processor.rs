@@ -61,7 +61,7 @@ pub fn process_init_admin<'a>(
         system_program,
         MAX_ADMIN_SIZE,
         program_id,
-        &[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes()],
+        &[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes(), upgrade_program.as_ref()],
     )?;
 
     let mut upgrade_admin: UpgradeAdmin = BorshDeserialize::deserialize(&mut upgrade_admin_info.data.borrow_mut().as_ref())?;
@@ -136,13 +136,29 @@ pub fn process_upgrade<'a>(
         upgrade_spill.key,
     );
 
-    let mut data = Vec::new();
-    data.append(&mut Vec::from(solana_program::keccak::hash(&upgrade_buffer.data.borrow()).as_ref()));
-    data.append(&mut Vec::from(lib::merkle::SOLANA_NETWORK));
-    data.append(&mut Vec::from(lib::merkle::amount_bytes(upgrade_admin.nonce)));
-    data.append(&mut Vec::from(program_id.as_ref()));
+    msg!("Current nonce: {}", upgrade_admin.nonce);
 
-    verify_ecdsa_signature(solana_program::keccak::hash(data.as_slice()).as_ref(), signature.as_slice(), recovery_id, upgrade_admin.public_key)?;
+    let mut data = Vec::new();
+
+    let network = String::from(lib::merkle::SOLANA_NETWORK);
+    msg!("Network bytes: {}", bs58::encode(network.as_bytes()).into_string().as_str());
+    data.append(&mut Vec::from(network.as_bytes()));
+
+    let nonce_bytes = lib::merkle::amount_bytes(upgrade_admin.nonce);
+    msg!("Nonce bytes: {}", bs58::encode(nonce_bytes.as_slice()).into_string().as_str());
+    data.append(&mut Vec::from(nonce_bytes));
+
+
+    msg!("Target contract bytes: {}", bs58::encode(upgrade_program.key.as_ref()).into_string().as_str());
+    data.append(&mut Vec::from(upgrade_program.key.as_ref()));
+
+    msg!("Buffer bytes: {}", bs58::encode(upgrade_buffer.key.as_ref()).into_string().as_str());
+    data.append(&mut Vec::from(upgrade_buffer.key.as_ref()));
+
+    let hash = solana_program::keccak::hash(data.as_slice());
+    msg!("Calculated hash: {}", bs58::encode(hash.as_ref()).into_string().as_str());
+
+    verify_ecdsa_signature(hash.as_ref(), signature.as_slice(), recovery_id, upgrade_admin.public_key)?;
 
     invoke_signed(
         &instruction,
@@ -155,7 +171,7 @@ pub fn process_upgrade<'a>(
             clock_info.clone(),
             upgrade_admin_info.clone(),
         ],
-        &[&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes()]],
+        &[&[lib::UPGRADE_ADMIN_PDA_SEED.as_bytes(), upgrade_program.key.as_ref()]],
     )?;
 
 
