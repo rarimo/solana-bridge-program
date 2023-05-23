@@ -33,6 +33,7 @@ pub struct TransferOwnershipArgs {
 pub struct UpgradeArgs {
     pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     pub recovery_id: u8,
+    pub path: Vec<[u8; 32]>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone)]

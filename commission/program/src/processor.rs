@@ -216,7 +216,7 @@ pub fn process_add_token<'a>(
             CommissionTokenData::new_data(OperationType::AddToken, CommissionToken::from(&token))
         ),
     );
-    let root = get_merkle_root(content, &path)?;
+    let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     commission_admin.acceptable_tokens.push(CommissionToken::from(&token));
@@ -290,7 +290,7 @@ pub fn process_remove_token<'a>(
             CommissionTokenData::new_data(OperationType::RemoveToken, CommissionToken::from(&token))
         ),
     );
-    let root = get_merkle_root(content, &path)?;
+    let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     let token_to_remove = CommissionToken::from(&token);
@@ -371,7 +371,7 @@ pub fn process_update_token<'a>(
             CommissionTokenData::new_data(OperationType::UpdateToken, CommissionToken::from(&token))
         ),
     );
-    let root = get_merkle_root(content, &path)?;
+    let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     let token_to_update = CommissionToken::from(&token);
@@ -458,7 +458,7 @@ pub fn process_withdraw<'a>(
             })
         ),
     );
-    let root = get_merkle_root(content, &path)?;
+    let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     match token.into() {

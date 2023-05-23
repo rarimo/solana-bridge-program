@@ -12,6 +12,8 @@ use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_S
 use lib::ecdsa::verify_ecdsa_signature;
 use lib::error::LibError;
 use lib::instructions::upgrade::UpgradeInstruction;
+use crate::merkle::Content;
+use lib::merkle::get_merkle_root;
 
 pub fn process_instruction<'a>(
     program_id: &'a Pubkey,
@@ -30,7 +32,7 @@ pub fn process_instruction<'a>(
         }
         UpgradeInstruction::Upgrade(args) => {
             msg!("Instruction: Upgrade");
-            process_upgrade(program_id, accounts, args.signature, args.recovery_id)
+            process_upgrade(program_id, accounts, args.signature, args.recovery_id, args.path)
         }
     }
 }
@@ -109,6 +111,7 @@ pub fn process_upgrade<'a>(
     accounts: &'a [AccountInfo<'a>],
     signature: [u8; SECP256K1_SIGNATURE_LENGTH],
     recovery_id: u8,
+    path: Vec<[u8; 32]>,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
     let upgrade_admin_info = next_account_info(account_info_iter)?;
@@ -138,27 +141,10 @@ pub fn process_upgrade<'a>(
 
     msg!("Current nonce: {}", upgrade_admin.nonce);
 
-    let mut data = Vec::new();
+    let content = Content::new(upgrade_admin.nonce, upgrade_admin.contract, *upgrade_buffer.key);
+    let root = get_merkle_root(content.hash(), &path)?;
 
-    let network = String::from(lib::merkle::SOLANA_NETWORK);
-    msg!("Network bytes: {}", bs58::encode(network.as_bytes()).into_string().as_str());
-    data.append(&mut Vec::from(network.as_bytes()));
-
-    let nonce_bytes = lib::merkle::amount_bytes(upgrade_admin.nonce);
-    msg!("Nonce bytes: {}", bs58::encode(nonce_bytes.as_slice()).into_string().as_str());
-    data.append(&mut Vec::from(nonce_bytes));
-
-
-    msg!("Target contract bytes: {}", bs58::encode(upgrade_program.key.as_ref()).into_string().as_str());
-    data.append(&mut Vec::from(upgrade_program.key.as_ref()));
-
-    msg!("Buffer bytes: {}", bs58::encode(upgrade_buffer.key.as_ref()).into_string().as_str());
-    data.append(&mut Vec::from(upgrade_buffer.key.as_ref()));
-
-    let hash = solana_program::keccak::hash(data.as_slice());
-    msg!("Calculated hash: {}", bs58::encode(hash.as_ref()).into_string().as_str());
-
-    verify_ecdsa_signature(hash.as_ref(), signature.as_slice(), recovery_id, upgrade_admin.public_key)?;
+    verify_ecdsa_signature(root.as_ref(), signature.as_slice(), recovery_id, upgrade_admin.public_key)?;
 
     invoke_signed(
         &instruction,

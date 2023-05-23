@@ -55,9 +55,7 @@ pub fn amount_bytes(amount: u64) -> Vec<u8> {
     return Vec::from(result);
 }
 
-pub fn get_merkle_root(content: ContentNode, path: &Vec<[u8; 32]>) -> Result<[u8; 32], ProgramError> {
-    let mut hash = content.hash();
-
+pub fn get_merkle_root(mut hash: solana_program::keccak::Hash, path: &Vec<[u8; 32]>) -> Result<[u8; 32], ProgramError> {
     for i in 0..path.len() {
         let leaf = solana_program::keccak::Hash::new_from_array(path[i]);
         if leaf >= hash {

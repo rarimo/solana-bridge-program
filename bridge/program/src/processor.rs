@@ -407,7 +407,7 @@ pub fn process_withdraw_native<'a>(
             ),
         ),
     );
-    let root = get_merkle_root(content, &path)?;
+    let root = get_merkle_root(content.hash(), &path)?;
 
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
@@ -531,7 +531,7 @@ pub fn process_withdraw_ft<'a>(
         ),
     );
 
-    verify_ecdsa_signature(get_merkle_root(content, &path)?.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
+    verify_ecdsa_signature(get_merkle_root(content.hash(), &path)?.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -720,7 +720,7 @@ pub fn process_withdraw_nft<'a>(
         ),
     );
 
-    verify_ecdsa_signature(get_merkle_root(content, &path)?.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
+    verify_ecdsa_signature(get_merkle_root(content.hash(), &path)?.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
