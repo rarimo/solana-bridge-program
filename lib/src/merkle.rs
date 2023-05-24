@@ -43,9 +43,6 @@ impl ContentNode {
 
 pub fn amount_bytes(amount: u64) -> Vec<u8> {
     let mut result: [u8; 32] = [0; 32];
-    if amount == 0 {
-        return Vec::new();
-    }
 
     let bytes = amount.to_be_bytes();
     for i in 0..bytes.len() {
