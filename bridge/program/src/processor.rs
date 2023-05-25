@@ -399,7 +399,7 @@ pub fn process_withdraw_native<'a>(
 
     let content = ContentNode::new(
         origin,
-        owner_info.key.to_bytes(),
+        Some(owner_info.key.to_bytes()),
         program_id.to_bytes(),
         Box::new(
             TransferData::new_native_transfer(
@@ -517,7 +517,7 @@ pub fn process_withdraw_ft<'a>(
 
     let content = ContentNode::new(
         origin,
-        owner_info.key.to_bytes(),
+        Some(owner_info.key.to_bytes()),
         program_id.to_bytes(),
         Box::new(
             TransferData::new_ft_transfer(
@@ -707,7 +707,7 @@ pub fn process_withdraw_nft<'a>(
 
     let content = ContentNode::new(
         origin,
-        owner_info.key.to_bytes(),
+        Some(owner_info.key.to_bytes()),
         program_id.to_bytes(),
         Box::new(
             TransferData::new_nft_transfer(

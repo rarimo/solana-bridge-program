@@ -9,13 +9,13 @@ pub trait Data {
 pub struct ContentNode {
     pub origin: [u8; 32],
     pub network_to: String,
-    pub receiver: [u8; 32],
+    pub receiver: Option<[u8;32]>,
     pub program_id: [u8; 32],
     pub data: Vec<u8>,
 }
 
 impl ContentNode {
-    pub fn new(origin: [u8; 32], receiver: [u8; 32], program_id: [u8; 32], data: Box<dyn Data>) -> Self {
+    pub fn new(origin: [u8; 32], receiver: Option<[u8;32]>, program_id: [u8; 32], data: Box<dyn Data>) -> Self {
         ContentNode {
             origin,
             receiver,
@@ -33,7 +33,9 @@ impl ContentNode {
 
         data.append(&mut Vec::from(self.network_to.as_bytes()));
 
-        data.append(&mut Vec::from(self.receiver.as_slice()));
+        if let Some(receiver) = self.receiver {
+            data.append(&mut Vec::from(receiver.as_slice()));
+        }
 
         data.append(&mut Vec::from(self.program_id.as_slice()));
 

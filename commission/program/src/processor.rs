@@ -207,10 +207,9 @@ pub fn process_add_token<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-
     let content = ContentNode::new(
         origin,
-        program_id.to_bytes(),
+        None,
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::AddToken, CommissionToken::from(&token))
@@ -284,7 +283,7 @@ pub fn process_remove_token<'a>(
 
     let content = ContentNode::new(
         origin,
-        program_id.to_bytes(),
+        None,
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::RemoveToken, CommissionToken::from(&token))
@@ -365,7 +364,7 @@ pub fn process_update_token<'a>(
 
     let content = ContentNode::new(
         origin,
-        program_id.to_bytes(),
+        None,
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::UpdateToken, CommissionToken::from(&token))
@@ -449,7 +448,7 @@ pub fn process_withdraw<'a>(
 
     let content = ContentNode::new(
         origin,
-        receiver_info.key.to_bytes(),
+        Some(receiver_info.key.to_bytes()),
         program_id.to_bytes(),
         Box::new(
             CommissionTokenData::new_data(OperationType::WithdrawToken, CommissionToken {
