@@ -1,5 +1,6 @@
-use lib::merkle::{SOLANA_NETWORK, amount_bytes};
+use lib::merkle::{amount_bytes};
 use solana_program::pubkey::Pubkey;
+use lib::SOLANA_NETWORK;
 
 pub struct Content {
     pub network: String,

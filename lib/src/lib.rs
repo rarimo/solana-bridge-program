@@ -12,6 +12,8 @@ pub mod ecdsa;
 pub mod error;
 pub mod instructions;
 
+pub const SOLANA_NETWORK: &str = "Solana";
+
 pub const COMMISSION_ADMIN_PDA_SEED: &str = "commission_admin";
 pub const UPGRADE_ADMIN_PDA_SEED: &str = "upgrade_admin";
 

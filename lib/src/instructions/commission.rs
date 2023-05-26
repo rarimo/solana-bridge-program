@@ -28,7 +28,6 @@ pub struct InitializeAdminArgs {
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct FeeTokenArgs {
-    pub origin: [u8; 32],
     pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     pub recovery_id: u8,
     pub path: Vec<[u8; 32]>,
@@ -38,11 +37,10 @@ pub struct FeeTokenArgs {
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct WithdrawArgs {
-    pub origin: [u8; 32],
     pub signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     pub recovery_id: u8,
     pub path: Vec<[u8; 32]>,
-    pub token: CommissionToken,
+    pub token: CommissionTokenArg,
     pub withdraw_amount: u64,
 }
 
@@ -80,10 +78,6 @@ pub enum CommissionInstruction {
     ///
     ///   0. `[writable]` The CommissionAdmin account
     ///   1. `[]` The BridgeAdmin account
-    ///   2. `[writable, signer]` The fee payer
-    ///   3. `[writable]` The Management account
-    ///   4. `[]` System program
-    ///   5. `[]` Rent sysvar
     AddFeeToken(FeeTokenArgs),
 
     /// Remove new acceptable commission token
@@ -92,10 +86,6 @@ pub enum CommissionInstruction {
     ///
     ///   0. `[writable]` The CommissionAdmin account
     ///   1. `[]` The BridgeAdmin account
-    ///   2. `[writable, signer]` The fee payer
-    ///   3. `[writable]` The Management account
-    ///   4. `[]` System program
-    ///   5. `[]` Rent sysvar
     RemoveFeeToken(FeeTokenArgs),
 
     /// Update certain acceptable commission token
@@ -104,10 +94,6 @@ pub enum CommissionInstruction {
     ///
     ///   0. `[writable]` The CommissionAdmin account
     ///   1. `[]` The BridgeAdmin account
-    ///   2. `[writable, signer]` The fee payer
-    ///   3. `[writable]` The Management account
-    ///   4. `[]` System program
-    ///   5. `[]` Rent sysvar
     UpdateFeeToken(FeeTokenArgs),
 
     /// Withdraw collected tokens from contract
@@ -117,12 +103,11 @@ pub enum CommissionInstruction {
     ///   0. `[]` The CommissionAdmin account
     ///   1. `[]` The BridgeAdmin account
     ///   2. `[writable, signer]` The receiver account (also fee payer)
-    ///   3. `[writable]` The Management account
-    ///   4. `[]` System program
-    ///   5. `[]` Rent sysvar
-    ///   6. `[]` SPL token program
-    ///   7. `[]` Commission token receiver associated account (Optional)
-    ///   8. `[]` Commission token admin associated account (Optional)
-    ///   9. `[]` Commission token mint account (Optional)
+    ///   3. `[]` System program
+    ///   4. `[]` Rent sysvar
+    ///   5. `[]` SPL token program
+    ///   6. `[]` Commission token receiver associated account (Optional)
+    ///   7. `[]` Commission token admin associated account (Optional)
+    ///   8. `[]` Commission token mint account (Optional)
     Withdraw(WithdrawArgs),
 }

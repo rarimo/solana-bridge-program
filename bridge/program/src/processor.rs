@@ -25,9 +25,9 @@ use crate::{
     state::BridgeAdmin,
     state::Withdraw,
 };
-use crate::merkle::{Data, TransferData};
+use crate::merkle::{Data, TransferData, Content};
 use solana_program::sysvar::instructions::{load_current_index_checked, load_instruction_at_checked};
-use lib::merkle::{ContentNode, get_merkle_root};
+use lib::merkle::{get_merkle_root};
 use lib::ecdsa::verify_ecdsa_signature;
 use lib::instructions::bridge::{BridgeInstruction, SignedMetadata};
 use lib::instructions::InstructionValidation;
@@ -397,9 +397,9 @@ pub fn process_withdraw_native<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    let content = ContentNode::new(
+    let content = Content::new(
         origin,
-        Some(owner_info.key.to_bytes()),
+        owner_info.key.to_bytes(),
         program_id.to_bytes(),
         Box::new(
             TransferData::new_native_transfer(
@@ -515,9 +515,9 @@ pub fn process_withdraw_ft<'a>(
 
     let mint: spl_token::state::Mint = Mint::unpack_from_slice(&mut mint_info.data.borrow_mut().as_ref())?;
 
-    let content = ContentNode::new(
+    let content = Content::new(
         origin,
-        Some(owner_info.key.to_bytes()),
+        owner_info.key.to_bytes(),
         program_id.to_bytes(),
         Box::new(
             TransferData::new_ft_transfer(
@@ -705,9 +705,9 @@ pub fn process_withdraw_nft<'a>(
         collection = Some(collection_key.to_bytes())
     }
 
-    let content = ContentNode::new(
+    let content = Content::new(
         origin,
-        Some(owner_info.key.to_bytes()),
+        owner_info.key.to_bytes(),
         program_id.to_bytes(),
         Box::new(
             TransferData::new_nft_transfer(

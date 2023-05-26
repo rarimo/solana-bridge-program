@@ -4,7 +4,7 @@ use solana_program::{
     program::{invoke, invoke_signed}, pubkey::Pubkey, system_instruction,
     sysvar::{rent::Rent, Sysvar},
 };
-use crate::state::{CommissionToken, CommissionAdmin, MAX_ADMIN_SIZE, MANAGEMENT_SIZE, Management, OperationType};
+use crate::state::{CommissionToken, CommissionAdmin, MAX_ADMIN_SIZE, OperationType};
 use borsh::{
     BorshDeserialize, BorshSerialize,
 };
@@ -12,8 +12,8 @@ use spl_token::instruction::transfer;
 use spl_associated_token_account::get_associated_token_address;
 use spl_associated_token_account::instruction::create_associated_token_account;
 use solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
-use lib::merkle::{ContentNode, get_merkle_root};
-use crate::merkle::CommissionTokenData;
+use lib::merkle::get_merkle_root;
+use crate::merkle::Content;
 use lib::ecdsa::verify_ecdsa_signature;
 use lib::instructions::commission::{CommissionInstruction, CommissionTokenArg};
 use lib::error::LibError;
@@ -36,19 +36,19 @@ pub fn process_instruction<'a>(
         }
         CommissionInstruction::AddFeeToken(args) => {
             msg!("Instruction: Add fee token");
-            process_add_token(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token)
+            process_add_token(program_id, accounts, args.signature, args.recovery_id, args.path, args.token)
         }
         CommissionInstruction::RemoveFeeToken(args) => {
             msg!("Instruction: Remove fee token");
-            process_remove_token(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token)
+            process_remove_token(program_id, accounts, args.signature, args.recovery_id, args.path, args.token)
         }
         CommissionInstruction::UpdateFeeToken(args) => {
             msg!("Instruction: Update fee token");
-            process_update_token(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token)
+            process_update_token(program_id, accounts, args.signature, args.recovery_id, args.path, args.token)
         }
         CommissionInstruction::Withdraw(args) => {
             msg!("Instruction: Withdraw collected tokens");
-            process_withdraw(program_id, accounts, args.origin, args.signature, args.recovery_id, args.path, args.token, args.withdraw_amount)
+            process_withdraw(program_id, accounts,  args.signature, args.recovery_id, args.path, args.token, args.withdraw_amount)
         }
     }
 }
@@ -177,7 +177,6 @@ pub fn process_charge_commission<'a>(
 pub fn process_add_token<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
-    origin: [u8; 32],
     signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
@@ -187,10 +186,6 @@ pub fn process_add_token<'a>(
 
     let commission_admin_info = next_account_info(account_info_iter)?;
     let bridge_admin_info = next_account_info(account_info_iter)?;
-    let payer_info = next_account_info(account_info_iter)?;
-    let management_info = next_account_info(account_info_iter)?;
-    let system_program = next_account_info(account_info_iter)?;
-    let rent_info = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -207,51 +202,27 @@ pub fn process_add_token<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    let content = ContentNode::new(
-        origin,
+    let content = Content::new(
+        commission_admin.add_token_nonce,
         None,
-        program_id.to_bytes(),
-        Box::new(
-            CommissionTokenData::new_data(OperationType::AddToken, CommissionToken::from(&token))
-        ),
+        *program_id,
+        OperationType::AddToken,
+        CommissionToken::from(&token),
     );
+
     let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
+    commission_admin.add_token_nonce += 1;
     commission_admin.acceptable_tokens.push(CommissionToken::from(&token));
     commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
 
-    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
-    if management_key != *management_info.key {
-        return Err(LibError::WrongNonce.into());
-    }
-
-    lib::call_create_account(
-        payer_info,
-        management_info,
-        rent_info,
-        system_program,
-        MANAGEMENT_SIZE,
-        program_id,
-        &[origin.as_slice(), &[bump_seed]],
-    )?;
-
-    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
-    if management.is_initialized {
-        return Err(LibError::AlreadyInUse.into());
-    }
-
-    management.origin = origin;
-    management.operation_type = OperationType::AddToken;
-    management.is_initialized = true;
-    management.serialize(&mut *management_info.data.borrow_mut())?;
     Ok(())
 }
 
 pub fn process_remove_token<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
-    origin: [u8; 32],
     signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
@@ -261,10 +232,6 @@ pub fn process_remove_token<'a>(
 
     let commission_admin_info = next_account_info(account_info_iter)?;
     let bridge_admin_info = next_account_info(account_info_iter)?;
-    let payer_info = next_account_info(account_info_iter)?;
-    let management_info = next_account_info(account_info_iter)?;
-    let system_program = next_account_info(account_info_iter)?;
-    let rent_info = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -281,13 +248,12 @@ pub fn process_remove_token<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    let content = ContentNode::new(
-        origin,
+    let content = Content::new(
+        commission_admin.remove_token_nonce,
         None,
-        program_id.to_bytes(),
-        Box::new(
-            CommissionTokenData::new_data(OperationType::RemoveToken, CommissionToken::from(&token))
-        ),
+        *program_id,
+        OperationType::RemoveToken,
+        CommissionToken::from(&token),
     );
     let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
@@ -300,39 +266,15 @@ pub fn process_remove_token<'a>(
         }
     }
 
+    commission_admin.remove_token_nonce += 1;
     commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
 
-    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
-    if management_key != *management_info.key {
-        return Err(LibError::WrongNonce.into());
-    }
-
-    lib::call_create_account(
-        payer_info,
-        management_info,
-        rent_info,
-        system_program,
-        MANAGEMENT_SIZE,
-        program_id,
-        &[origin.as_slice(), &[bump_seed]],
-    )?;
-
-    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
-    if management.is_initialized {
-        return Err(LibError::AlreadyInUse.into());
-    }
-
-    management.origin = origin;
-    management.operation_type = OperationType::RemoveToken;
-    management.is_initialized = true;
-    management.serialize(&mut *management_info.data.borrow_mut())?;
     Ok(())
 }
 
 pub fn process_update_token<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
-    origin: [u8; 32],
     signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
@@ -342,10 +284,6 @@ pub fn process_update_token<'a>(
 
     let commission_admin_info = next_account_info(account_info_iter)?;
     let bridge_admin_info = next_account_info(account_info_iter)?;
-    let payer_info = next_account_info(account_info_iter)?;
-    let management_info = next_account_info(account_info_iter)?;
-    let system_program = next_account_info(account_info_iter)?;
-    let rent_info = next_account_info(account_info_iter)?;
 
     let commission_key = Pubkey::create_program_address(&[lib::COMMISSION_ADMIN_PDA_SEED.as_bytes(), bridge_admin_info.key.as_ref()], &program_id)?;
     if commission_key != *commission_admin_info.key {
@@ -362,13 +300,12 @@ pub fn process_update_token<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    let content = ContentNode::new(
-        origin,
+    let content = Content::new(
+        commission_admin.update_token_nonce,
         None,
-        program_id.to_bytes(),
-        Box::new(
-            CommissionTokenData::new_data(OperationType::UpdateToken, CommissionToken::from(&token))
-        ),
+        *program_id,
+        OperationType::UpdateToken,
+        CommissionToken::from(&token),
     );
     let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
@@ -381,32 +318,8 @@ pub fn process_update_token<'a>(
         }
     }
 
+    commission_admin.update_token_nonce += 1;
     commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
-
-    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
-    if management_key != *management_info.key {
-        return Err(LibError::WrongNonce.into());
-    }
-
-    lib::call_create_account(
-        payer_info,
-        management_info,
-        rent_info,
-        system_program,
-        MANAGEMENT_SIZE,
-        program_id,
-        &[origin.as_slice(), &[bump_seed]],
-    )?;
-
-    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
-    if management.is_initialized {
-        return Err(LibError::AlreadyInUse.into());
-    }
-
-    management.origin = origin;
-    management.operation_type = OperationType::UpdateToken;
-    management.is_initialized = true;
-    management.serialize(&mut *management_info.data.borrow_mut())?;
 
     Ok(())
 }
@@ -415,11 +328,10 @@ pub fn process_update_token<'a>(
 pub fn process_withdraw<'a>(
     program_id: &'a Pubkey,
     accounts: &'a [AccountInfo<'a>],
-    origin: [u8; 32],
     signature: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     recovery_id: u8,
     path: Vec<[u8; 32]>,
-    token: lib::CommissionToken,
+    token: CommissionTokenArg,
     withdraw_amount: u64,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -427,7 +339,6 @@ pub fn process_withdraw<'a>(
     let commission_admin_info = next_account_info(account_info_iter)?;
     let bridge_admin_info = next_account_info(account_info_iter)?;
     let receiver_info = next_account_info(account_info_iter)?;
-    let management_info = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
@@ -436,7 +347,7 @@ pub fn process_withdraw<'a>(
         return Err(LibError::WrongAdmin.into());
     }
 
-    let commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
+    let mut commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
     if !commission_admin.is_initialized {
         return Err(LibError::NotInitialized.into());
     }
@@ -446,21 +357,17 @@ pub fn process_withdraw<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    let content = ContentNode::new(
-        origin,
-        Some(receiver_info.key.to_bytes()),
-        program_id.to_bytes(),
-        Box::new(
-            CommissionTokenData::new_data(OperationType::WithdrawToken, CommissionToken {
-                token: token.clone(),
-                amount: withdraw_amount,
-            })
-        ),
+    let content = Content::new(
+        commission_admin.withdraw_token_nonce,
+        Some(*receiver_info.key),
+        *program_id,
+        OperationType::WithdrawToken,
+        CommissionToken::from(&token),
     );
     let root = get_merkle_root(content.hash(), &path)?;
     verify_ecdsa_signature(root.as_slice(), signature.as_slice(), recovery_id, bridge_admin.public_key)?;
 
-    match token.into() {
+    match token.token.into() {
         lib::CommissionToken::Native => {
             call_transfer_native(
                 commission_admin_info,
@@ -511,30 +418,9 @@ pub fn process_withdraw<'a>(
         }
     }
 
-    let (management_key, bump_seed) = Pubkey::find_program_address(&[origin.as_slice()], program_id);
-    if management_key != *management_info.key {
-        return Err(LibError::WrongNonce.into());
-    }
+    commission_admin.withdraw_token_nonce += 1;
+    commission_admin.serialize(&mut *commission_admin_info.data.borrow_mut())?;
 
-    lib::call_create_account(
-        receiver_info,
-        management_info,
-        rent_info,
-        system_program,
-        MANAGEMENT_SIZE,
-        program_id,
-        &[origin.as_slice(), &[bump_seed]],
-    )?;
-
-    let mut management: Management = BorshDeserialize::deserialize(&mut management_info.data.borrow_mut().as_ref())?;
-    if management.is_initialized {
-        return Err(LibError::AlreadyInUse.into());
-    }
-
-    management.origin = origin;
-    management.operation_type = OperationType::WithdrawToken;
-    management.is_initialized = true;
-    management.serialize(&mut *management_info.data.borrow_mut())?;
     Ok(())
 }
 

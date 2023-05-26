@@ -5,10 +5,49 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-pub use lib::merkle::Data;
-use lib::merkle::amount_bytes;
+use lib::merkle::{amount_bytes};
+use lib::SOLANA_NETWORK;
 
 const SOLANA_NATIVE_DECIMALS: u8 = 9u8;
+
+pub trait Data {
+    fn get_operation(&self) -> Vec<u8>;
+}
+
+pub struct Content {
+    pub origin: [u8; 32],
+    pub network_to: String,
+    pub receiver: [u8;32],
+    pub program_id: [u8; 32],
+    pub data: Vec<u8>,
+}
+
+impl Content {
+    pub fn new(origin: [u8; 32], receiver: [u8;32], program_id: [u8; 32], data: Box<dyn Data>) -> Self {
+        Content {
+            origin,
+            receiver,
+            network_to: String::from(SOLANA_NETWORK),
+            program_id,
+            data: data.get_operation(),
+        }
+    }
+
+    pub fn hash(self) -> solana_program::keccak::Hash {
+        let mut data = Vec::new();
+        data.append(&mut Vec::from(self.data));
+
+        data.append(&mut Vec::from(self.origin.as_slice()));
+
+        data.append(&mut Vec::from(self.network_to.as_bytes()));
+
+        data.append(&mut Vec::from(self.receiver.as_slice()));
+
+        data.append(&mut Vec::from(self.program_id.as_slice()));
+
+        solana_program::keccak::hash(data.as_slice())
+    }
+}
 
 pub struct TransferData {
     // Empty line if is native
