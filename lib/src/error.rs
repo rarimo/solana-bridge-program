@@ -6,7 +6,7 @@ use thiserror::Error;
 
 /// Errors that may be returned by the Token program.
 #[derive(Clone, Debug, Eq, Error, FromPrimitive, PartialEq)]
-pub enum BridgeError {
+pub enum LibError {
     /// 0 The account cannot be initialized because it is already being used.
     #[error("Already in use")]
     AlreadyInUse,
@@ -85,23 +85,38 @@ pub enum BridgeError {
     /// 25 Uninitialized mint
     #[error("Uninitialized mint")]
     UninitializedMint,
+    /// 26 Wrong commission program
+    #[error("Wrong commission program")]
+    WrongCommissionProgram,
+    /// 27 Wrong commission deposit arguments
+    #[error("Wrong commission deposit arguments")]
+    WrongCommissionArguments,
+    /// 28 Wrong commission account
+    #[error("Wrong commission account")]
+    WrongCommissionAccount,
+    /// 29 Token is not acceptable to charge commission in
+    #[error("Not acceptable")]
+    NotAcceptable,
+    /// 30 Token is not supported yet
+    #[error("Not supported")]
+    NotSupported,
 }
 
 
-impl From<BridgeError> for ProgramError {
-    fn from(e: BridgeError) -> Self {
+impl From<LibError> for ProgramError {
+    fn from(e: LibError) -> Self {
         ProgramError::Custom(e as u32)
     }
 }
 
-impl PrintProgramError for BridgeError {
+impl PrintProgramError for LibError {
     fn print<E>(&self) {
         msg!(&self.to_string());
     }
 }
 
-impl<T> DecodeError<T> for BridgeError {
+impl<T> DecodeError<T> for LibError {
     fn type_of() -> &'static str {
-        "BridgeError"
+        "LibError"
     }
 }

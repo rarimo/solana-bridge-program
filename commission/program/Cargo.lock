@@ -349,7 +349,7 @@ checksum = "fdde5c9cd29ebd706ce1b35600920a33550e402fc998a2e53ad3b42c3c47a192"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.11",
 ]
 
 [[package]]
@@ -994,9 +994,9 @@ dependencies = [
 
 [[package]]
 name = "mpl-token-metadata"
-version = "1.11.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aed414104154928aa995a44a0a474c449d04ce5a4ee6c975ad41c5d2912f0dfe"
+checksum = "410acbbc7d543108cc4d93f98290da008716c801f04a923cd83de2ec86244c1f"
 dependencies = [
  "arrayref",
  "borsh",
@@ -1024,9 +1024,9 @@ dependencies = [
 
 [[package]]
 name = "mpl-utils"
-version = "0.2.0"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "822133b6cba8f9a43e5e0e189813be63dd795858f54155c729833be472ffdb51"
+checksum = "7fc48e64c50dba956acb46eec86d6968ef0401ef37031426da479f1f2b592066"
 dependencies = [
  "arrayref",
  "borsh",
@@ -1173,9 +1173,9 @@ checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
 
 [[package]]
 name = "pest"
-version = "2.5.7"
+version = "2.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b1403e8401ad5dedea73c626b99758535b342502f8d1e361f4a2dd952749122"
+checksum = "8cbd939b234e95d72bc393d51788aec68aeeb5d51e748ca08ff3aad58cb722f7"
 dependencies = [
  "thiserror",
  "ucd-trie",
@@ -1486,7 +1486,7 @@ checksum = "4c614d17805b093df4b147b51339e7e44bf05ef59fba1e45d83500bcfb4d8585"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.11",
 ]
 
 [[package]]
@@ -1671,24 +1671,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
 
 [[package]]
-name = "solana-bridge-lib"
-version = "0.0.1"
-dependencies = [
- "borsh",
- "bs58",
- "mpl-token-metadata",
- "num-derive",
- "num-traits",
- "solana-program",
- "solana-sdk",
- "spl-associated-token-account",
- "spl-token",
- "thiserror",
-]
-
-[[package]]
 name = "solana-bridge-program"
 version = "0.0.1"
+source = "git+https://gitlab.com/rarimo/contracts/solana-bridge-program.git?branch=develop#2e238613781e3a7592a78976807a116dbb5f1663"
 dependencies = [
  "arrayref",
  "borsh",
@@ -1696,10 +1681,8 @@ dependencies = [
  "mpl-token-metadata",
  "num-derive",
  "num-traits",
- "shank 0.0.12",
- "solana-bridge-lib",
+ "shank 0.0.11",
  "solana-program",
- "solana-sdk",
  "spl-associated-token-account",
  "spl-token",
  "thiserror",
@@ -1714,7 +1697,6 @@ dependencies = [
  "num-derive",
  "num-traits",
  "shank 0.0.12",
- "solana-bridge-lib",
  "solana-bridge-program",
  "solana-program",
  "solana-sdk",
@@ -1901,23 +1883,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-upgrade-program"
-version = "0.0.1"
-dependencies = [
- "arrayref",
- "borsh",
- "bs58",
- "num-derive",
- "num-traits",
- "shank 0.0.12",
- "solana-bridge-lib",
- "solana-program",
- "solana-sdk",
- "spl-token",
- "thiserror",
-]
-
-[[package]]
 name = "solana-zk-token-sdk"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2031,9 +1996,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.12"
+version = "2.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79d9531f94112cfc3e4c8f5f02cb2b58f72c97b7efd85f70203cc6d8efda5927"
+checksum = "21e3787bb71465627110e7d87ed4faaa36c1f61042ee67badb9e2ef173accc40"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2066,7 +2031,7 @@ checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.11",
 ]
 
 [[package]]
@@ -2375,11 +2340,11 @@ dependencies = [
 
 [[package]]
 name = "zeroize_derive"
-version = "1.4.2"
+version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
+checksum = "25588073e5216b50bca71d61cb8595cdb9745e87032a58c199730def2862c934"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.12",
+ "syn 2.0.11",
 ]

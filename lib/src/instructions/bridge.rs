@@ -8,8 +8,15 @@ use solana_program::{
 };
 use solana_program::secp256k1_recover::{SECP256K1_PUBLIC_KEY_LENGTH, SECP256K1_SIGNATURE_LENGTH};
 use spl_associated_token_account::get_associated_token_address;
+use crate::instructions::InstructionValidation;
+use std::mem::size_of;
+use crate::error::LibError;
+use crate::TokenType;
 
-use crate::util;
+pub const MAX_NETWORKS_SIZE: usize = 20;
+pub const MAX_ADDRESS_SIZE: usize = 100;
+pub const MAX_TOKEN_ID_SIZE: usize = 100;
+pub const MAX_TX_SIZE: usize = 100;
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -18,6 +25,7 @@ pub struct InitializeAdminArgs {
     pub public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     // Admin account seeds (also public)
     pub seeds: [u8; 32],
+    pub commission_program: Pubkey,
 }
 
 #[repr(C)]
@@ -135,6 +143,7 @@ pub enum BridgeInstruction {
     ///   1. `[writable,signer]` The owner account
     ///   2. `[]` System program
     ///   3. `[]` Rent sysvar
+    ///   5. `[]` Sysvar
     DepositNative(DepositNativeArgs),
 
     /// Make FT deposit on bridge.
@@ -149,7 +158,8 @@ pub enum BridgeInstruction {
     ///   5. `[]` Token program id
     ///   6. `[]` System program
     ///   7. `[]` Rent sysvar
-    ///   8. `[]` Associated token program
+    ///   8. `[]` Sysvar
+    ///   9. `[]` Associated token program
     DepositFT(DepositFTArgs),
 
     /// Make NFT deposit on bridge.
@@ -164,7 +174,8 @@ pub enum BridgeInstruction {
     ///   5. `[]` Token program id
     ///   6. `[]` System program
     ///   7. `[]` Rent sysvar
-    ///   8. `[]` Associated token program
+    ///   8. `[]` Sysvar
+    ///   9. `[]` Associated token program
     DepositNFT(DepositNFTArgs),
 
     /// Make NFT withdraw from bridge.
@@ -232,10 +243,71 @@ pub enum BridgeInstruction {
 }
 
 
+impl InstructionValidation for DepositNativeArgs {
+    fn validate(&self) -> ProgramResult {
+        if self.receiver_address.as_bytes().len() > MAX_ADDRESS_SIZE ||
+            self.network_to.as_bytes().len() > MAX_NETWORKS_SIZE || self.amount <= 0 {
+            return Err(LibError::WrongArgsSize.into());
+        }
+
+        Ok(())
+    }
+}
+
+impl InstructionValidation for DepositFTArgs {
+    fn validate(&self) -> ProgramResult {
+        if self.receiver_address.as_bytes().len() > MAX_ADDRESS_SIZE ||
+            self.network_to.as_bytes().len() > MAX_NETWORKS_SIZE || self.amount <= 0 {
+            return Err(LibError::WrongArgsSize.into());
+        }
+
+        Ok(())
+    }
+}
+
+impl InstructionValidation for DepositNFTArgs {
+    fn validate(&self) -> ProgramResult {
+        if self.receiver_address.as_bytes().len() > MAX_ADDRESS_SIZE || self.network_to.as_bytes().len() > MAX_NETWORKS_SIZE {
+            return Err(LibError::WrongArgsSize.into());
+        }
+
+        Ok(())
+    }
+}
+
+impl InstructionValidation for WithdrawArgs {
+    fn validate(&self) -> ProgramResult {
+        if self.amount <= 0 {
+            return Err(LibError::WrongArgsSize.into());
+        }
+
+        Ok(())
+    }
+}
+
+impl InstructionValidation for MintCollectionArgs {
+    fn validate(&self) -> ProgramResult {
+        self.data.validate()
+    }
+}
+
+impl InstructionValidation for SignedMetadata {
+    fn validate(&self) -> ProgramResult {
+        if self.name.as_bytes().len() > mpl_token_metadata::state::MAX_NAME_LENGTH ||
+            self.symbol.as_bytes().len() > mpl_token_metadata::state::MAX_SYMBOL_LENGTH ||
+            self.uri.as_bytes().len() > mpl_token_metadata::state::MAX_URI_LENGTH {
+            return Err(LibError::WrongArgsSize.into());
+        }
+
+        Ok(())
+    }
+}
+
 pub fn initialize_admin(
     program_id: Pubkey,
     bridge_admin: Pubkey,
     fee_payer: Pubkey,
+    commission_program: Pubkey,
     public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH],
     seeds: [u8; 32],
 ) -> Instruction {
@@ -250,6 +322,7 @@ pub fn initialize_admin(
         data: BridgeInstruction::InitializeAdmin(InitializeAdminArgs {
             public_key,
             seeds,
+            commission_program,
         }).try_to_vec().unwrap(),
     }
 }

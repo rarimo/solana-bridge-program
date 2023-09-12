@@ -10,9 +10,8 @@ use solana_program::{
 use solana_program::program_error::PrintProgramError;
 
 use crate::processor;
-use crate::error::BridgeError;
+use lib::error::LibError;
 
-declare_id!("8RuX2EomaZj5xiEyU78XpDWRRp5wou4QNckHnkYX2Fgs");
 entrypoint!(process_instruction);
 
 fn process_instruction<'a>(
@@ -24,7 +23,7 @@ fn process_instruction<'a>(
         Ok(()) => Ok(()),
         Err(e) => {
             // catch the error so we can print it
-            e.print::<BridgeError>();
+            e.print::<LibError>();
             return Err(e);
         }
     }

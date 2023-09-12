@@ -5,11 +5,48 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-const SOLANA_NETWORK: &str = "Solana";
+use lib::merkle::{amount_bytes};
+use lib::SOLANA_NETWORK;
+
 const SOLANA_NATIVE_DECIMALS: u8 = 9u8;
 
 pub trait Data {
     fn get_operation(&self) -> Vec<u8>;
+}
+
+pub struct Content {
+    pub origin: [u8; 32],
+    pub network_to: String,
+    pub receiver: [u8;32],
+    pub program_id: [u8; 32],
+    pub data: Vec<u8>,
+}
+
+impl Content {
+    pub fn new(origin: [u8; 32], receiver: [u8;32], program_id: [u8; 32], data: Box<dyn Data>) -> Self {
+        Content {
+            origin,
+            receiver,
+            network_to: String::from(SOLANA_NETWORK),
+            program_id,
+            data: data.get_operation(),
+        }
+    }
+
+    pub fn hash(self) -> solana_program::keccak::Hash {
+        let mut data = Vec::new();
+        data.append(&mut Vec::from(self.data));
+
+        data.append(&mut Vec::from(self.origin.as_slice()));
+
+        data.append(&mut Vec::from(self.network_to.as_bytes()));
+
+        data.append(&mut Vec::from(self.receiver.as_slice()));
+
+        data.append(&mut Vec::from(self.program_id.as_slice()));
+
+        solana_program::keccak::hash(data.as_slice())
+    }
 }
 
 pub struct TransferData {
@@ -96,52 +133,4 @@ impl Data for TransferData {
 
         data
     }
-}
-
-pub struct ContentNode {
-    // Hash of deposit tx info. See spec in core for more information.
-    pub origin: [u8; 32],
-    // Solana
-    pub network_to: String,
-    pub receiver: [u8; 32],
-    pub program_id: [u8; 32],
-    pub data: Vec<u8>,
-}
-
-impl ContentNode {
-    pub fn new(origin: [u8; 32], receiver: [u8; 32], program_id: [u8; 32], data: Vec<u8>) -> Self {
-        ContentNode {
-            origin,
-            receiver,
-            network_to: String::from(SOLANA_NETWORK),
-            program_id,
-            data,
-        }
-    }
-
-    pub fn hash(self) -> solana_program::keccak::Hash {
-        let mut data = Vec::new();
-        data.append(&mut Vec::from(self.data));
-
-        data.append(&mut Vec::from(self.origin.as_slice()));
-
-        data.append(&mut Vec::from(self.network_to.as_bytes()));
-
-        data.append(&mut Vec::from(self.receiver.as_slice()));
-
-        data.append(&mut Vec::from(self.program_id.as_slice()));
-
-        solana_program::keccak::hash(data.as_slice())
-    }
-}
-
-fn amount_bytes(amount: u64) -> [u8; 32] {
-    let bytes = amount.to_be_bytes();
-    let mut result: [u8; 32] = [0; 32];
-
-    for i in 0..bytes.len() {
-        result[31 - i] = bytes[bytes.len() - 1 - i];
-    }
-
-    return result;
 }
