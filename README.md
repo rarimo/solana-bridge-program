@@ -16,7 +16,7 @@ The deposit implies the one transaction with two instructions:
 - Charge commission instruction to the [commission program](./commission/program).
 - Deposit (native/ft/nft) instruction to the [bridge program](./bridge/program).
 
-Note, that commission program should the same that is defined in bridge admin, 
+Note, that commission program should be the same that is defined in bridge admin, 
 and the bridge admin should be the same that Rarimo system uses. Otherwise, you can loose your tokens.
 
 The withdrawal implies the one transaction with withdraw (native/ft/nft) instruction. 
