@@ -193,7 +193,7 @@ pub fn process_add_token<'a>(
     }
 
     let mut commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
-    if commission_admin.is_initialized {
+    if !commission_admin.is_initialized {
         return Err(LibError::NotInitialized.into());
     }
 
@@ -239,7 +239,7 @@ pub fn process_remove_token<'a>(
     }
 
     let mut commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
-    if commission_admin.is_initialized {
+    if !commission_admin.is_initialized {
         return Err(LibError::NotInitialized.into());
     }
 
@@ -291,7 +291,7 @@ pub fn process_update_token<'a>(
     }
 
     let mut commission_admin: CommissionAdmin = BorshDeserialize::deserialize(&mut commission_admin_info.data.borrow_mut().as_ref())?;
-    if commission_admin.is_initialized {
+    if !commission_admin.is_initialized {
         return Err(LibError::NotInitialized.into());
     }
 
