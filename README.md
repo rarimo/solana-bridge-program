@@ -8,8 +8,6 @@ Currently they are described in the following sub-crates:
 - [Commission](./commission/program) - Rarimo Bridge commission program.
 - [Lib](./lib) - Rarimo bridge library
 
-Check the [dev-docs](https://rarimo.gitlab.io/dev-docs/docs/developers/contracts) for more information about how bridge works.
-
 ## Usage flow
 
 The deposit implies the one transaction with two instructions:
