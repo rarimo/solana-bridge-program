@@ -39,3 +39,6 @@ solana program deploy --program-id ./dist/program/commission-keypair.json ./dist
 solana program deploy --program-id ./dist/program/upgrade-keypair.json ./dist/program/upgrade.so
 ```
 
+## Security
+
+* [Halborn audit](./Rarimo_Solana_Bridge_Solana_Program_Security_Audit_Report_Halborn.pdf) for bridge without commissions & upgrade feature
