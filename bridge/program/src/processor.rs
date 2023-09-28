@@ -241,7 +241,7 @@ pub fn process_deposit_ft<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    verify_commission_charged(bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, amount)?;
+    verify_commission_charged(bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::FT, amount)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
@@ -321,7 +321,7 @@ pub fn process_deposit_nft<'a>(
         return Err(LibError::NotInitialized.into());
     }
 
-    verify_commission_charged( bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::Native, 1)?;
+    verify_commission_charged( bridge_admin_info, sysvar_info, &bridge_admin, lib::TokenType::NFT, 1)?;
 
     if *bridge_associated_info.key !=
         get_associated_token_address(&bridge_admin_key, mint_info.key) {
