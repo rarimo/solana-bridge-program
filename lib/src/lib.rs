@@ -21,8 +21,8 @@ pub const UPGRADE_ADMIN_PDA_SEED: &str = "upgrade_admin";
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub enum TokenType {
     Native,
-    NFT,
     FT,
+    NFT,
 }
 
 #[repr(C)]
