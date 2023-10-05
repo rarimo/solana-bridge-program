@@ -1,8 +1,10 @@
 # Rarimo Solana Bridge programs
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 That repository stores all contracts related to the Rarimo bridge on Solana. 
 
-Currently they are described in the following sub-crates:
+Currently, they are described in the following sub-crates:
 
 - [Bridge](./bridge/program) - Rarimo Bridge program 
 - [Commission](./commission/program) - Rarimo Bridge commission program.
@@ -36,7 +38,3 @@ solana program deploy --program-id ./dist/program/bridge-keypair.json ./dist/pro
 solana program deploy --program-id ./dist/program/commission-keypair.json ./dist/program/commission.so
 solana program deploy --program-id ./dist/program/upgrade-keypair.json ./dist/program/upgrade.so
 ```
-
-## Security
-
-* [Halborn audit](./Rarimo_Solana_Bridge_Solana_Program_Security_Audit_Report_Halborn.pdf) for bridge without commissions & upgrade feature
