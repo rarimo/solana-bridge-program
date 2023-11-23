@@ -6,8 +6,9 @@ use solana_program::{
     sysvar,
 };
 use solana_program::secp256k1_recover::SECP256K1_PUBLIC_KEY_LENGTH;
-use crate::{CommissionToken, CommissionArgs};
+use crate::{CommissionToken, CommissionArgs, TokenType};
 use std::mem::size_of;
+use spl_associated_token_account::get_associated_token_address;
 
 pub const MAX_TOKENS_COUNT: usize = 10;
 pub const MAX_TOKEN_SIZE: usize = size_of::<CommissionToken>() + 32;
@@ -110,4 +111,65 @@ pub enum CommissionInstruction {
     ///   7. `[]` Commission token admin associated account (Optional)
     ///   8. `[]` Commission token mint account (Optional)
     Withdraw(WithdrawArgs),
+}
+
+pub fn charge_commission_native(
+    program_id: Pubkey,
+    commission_admin: Pubkey,
+    bridge_admin: Pubkey,
+    owner: Pubkey,
+    token: CommissionToken,
+    deposit_token: TokenType,
+    deposit_token_amount: u64,
+) -> Instruction {
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(commission_admin, false),
+            AccountMeta::new_readonly(bridge_admin, false),
+            AccountMeta::new(owner, true),
+            AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+        ],
+        data: CommissionInstruction::ChargeCommission(CommissionArgs {
+            token,
+            deposit_token,
+            deposit_token_amount,
+        }).try_to_vec().unwrap(),
+    }
+}
+
+pub fn charge_commission_ft(
+    program_id: Pubkey,
+    commission_admin: Pubkey,
+    bridge_admin: Pubkey,
+    owner: Pubkey,
+    mint: Pubkey,
+    token: CommissionToken,
+    deposit_token: TokenType,
+    deposit_token_amount: u64,
+) -> Instruction {
+    let owner_associated = get_associated_token_address(&owner, &mint);
+    let commission_associated = get_associated_token_address(&commission_admin, &mint);
+
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(commission_admin, false),
+            AccountMeta::new_readonly(bridge_admin, false),
+            AccountMeta::new(owner, true),
+            AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+            AccountMeta::new(owner_associated, false),
+            AccountMeta::new(commission_associated, false),
+            AccountMeta::new_readonly(mint, false),
+        ],
+        data: CommissionInstruction::ChargeCommission(CommissionArgs {
+            token,
+            deposit_token,
+            deposit_token_amount,
+        }).try_to_vec().unwrap(),
+    }
 }
